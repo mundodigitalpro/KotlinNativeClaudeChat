@@ -1,6 +1,6 @@
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.winhttp.*
+import io.ktor.client.engine.darwin.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -102,7 +102,7 @@ fun main() = runBlocking {
     // Procede con la ejecución normal de la aplicación
     println("Configuración cargada: $config")
 
-    val client = HttpClient(WinHttp) {
+    val client = HttpClient(Darwin) {
         install(ContentNegotiation) {
             json(Json {
                 prettyPrint = true
