@@ -21,14 +21,16 @@ Esta aplicación de chat desarrollada en Kotlin Native permite interactuar con m
 
 ### OpenRouter
 - Acceso a 400+ modelos de IA incluyendo:
-  - **OpenAI**: GPT-4o, GPT-4o-mini, ChatGPT
-  - **Anthropic**: Claude 3.5 Sonnet, Claude 3 Haiku
-  - **Google**: Gemini 2.0 Flash, Gemini Pro
-  - **Mistral**: Mistral Large, Codestral
-  - **Meta**: Llama modelos
+  - **OpenAI**: GPT-4o, GPT-4o-mini, GPT-5 (BYOK), gpt-oss-20b
+  - **Anthropic**: Claude 3.5 Sonnet, Claude Opus 4.1
+  - **Google**: Gemini 2.5 Flash Lite (actualizado)
+  - **Mistral**: Mistral Large, Codestral 2508
+  - **Qwen**: Qwen3 Coder (gratis), Qwen3 235B Thinking
+  - **Z.AI**: GLM 4.5, GLM 4.5 Air (gratis)
   - **Y muchos más...**
 - Una sola API key para todos los modelos
 - Tracking opcional de aplicaciones
+- Modelos gratuitos disponibles
 
 ## Prerrequisitos
 
@@ -81,8 +83,10 @@ Enter your OpenRouter API key: sk-or-v1-tu-api-key-aqui
 Popular OpenRouter models:
 - openai/gpt-4o
 - anthropic/claude-3.5-sonnet
-- google/gemini-2.0-flash-exp
+- google/gemini-2.5-flash-lite
 - mistralai/mistral-large
+- qwen/qwen3-coder:free
+- z-ai/glm-4.5-air:free
 Enter model name: openai/gpt-4o-mini
 
 Enter your app/site name (optional): Mi App de Chat
@@ -224,6 +228,20 @@ src/nativeMain/kotlin/
 - Para OpenRouter: verifica el formato `proveedor/modelo` (ej: `openai/gpt-4o-mini`)
 - Para Anthropic: usa nombres oficiales (ej: `claude-3-5-sonnet-20241022`)
 
+### Modelos Actualizados (Enero 2025)
+**❌ Modelos Discontinuados:**
+- `google/gemini-2.0-flash-exp` → Usar `google/gemini-2.5-flash-lite`
+- `google/gemini-pro` → Usar `google/gemini-2.5-flash-lite`
+
+**✅ Modelos Verificados Funcionando:**
+- `google/gemini-2.5-flash-lite` - Google Gemini más reciente
+- `openai/gpt-4o` - GPT-4o estándar
+- `openai/gpt-4o-mini` - GPT-4o optimizado
+- `anthropic/claude-3.5-sonnet` - Claude 3.5 Sonnet
+- `qwen/qwen3-coder:free` - Especializado en código (gratis)
+- `z-ai/glm-4.5-air:free` - Modelo general (gratis)
+- `openai/gpt-oss-20b:free` - OpenAI open source (gratis)
+
 ### Reconfigurar API
 ```bash
 # Eliminar configuración existente
@@ -249,6 +267,16 @@ Las contribuciones son bienvenidas. Para contribuir:
 - [ ] Guardado de historial de conversaciones
 - [ ] Interfaz gráfica (Compose Multiplatform)
 - [ ] Configuración de parámetros del modelo (temperatura, max tokens)
+- [ ] Soporte completo para modelos con reasoning tokens (GLM 4.5)
+
+## 🔄 Actualizaciones Recientes
+
+### v1.2.0 (Enero 2025)
+- ✅ **Cambio de modelo inteligente**: Nueva opción para cambiar solo el modelo manteniendo la API key
+- ✅ **Modelos actualizados**: Lista corregida con modelos verificados funcionando
+- ✅ **Manejo de errores mejorado**: Detección específica de errores de OpenRouter con sugerencias
+- ✅ **Modelos gratuitos**: Acceso a modelos gratuitos como GLM 4.5 Air y Qwen3 Coder
+- ✅ **Google Gemini corregido**: Migración de `gemini-pro` a `gemini-2.5-flash-lite`
 
 ## 📄 Licencia
 

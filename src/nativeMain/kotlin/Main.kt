@@ -58,9 +58,12 @@ fun requestOpenRouterConfig(): Config {
     
     println("\nPopular OpenRouter models:")
     println("- openai/gpt-4o")
+    println("- openai/gpt-4o-mini")
     println("- anthropic/claude-3.5-sonnet")
-    println("- google/gemini-2.0-flash-exp")
+    println("- google/gemini-2.5-flash-lite")
     println("- mistralai/mistral-large")
+    println("- qwen/qwen3-coder:free")
+    println("- z-ai/glm-4.5-air:free")
     print("Enter model name: ")
     val model = readlnOrNull() ?: "openai/gpt-4o"
     
@@ -98,9 +101,11 @@ fun changeModelOnly(existingConfig: Config): Config {
             println("- openai/gpt-4o")
             println("- openai/gpt-4o-mini")
             println("- anthropic/claude-3.5-sonnet")
-            println("- google/gemini-2.0-flash-exp")
+            println("- google/gemini-2.5-flash-lite")
             println("- mistralai/mistral-large")
-            println("- meta-llama/llama-3.1-8b-instruct")
+            println("- qwen/qwen3-coder:free")
+            println("- z-ai/glm-4.5-air:free")
+            println("- openai/gpt-oss-20b:free")
             print("Enter new model name (current: ${existingConfig.model}): ")
             val newModel = readlnOrNull()?.takeIf { it.isNotBlank() } ?: existingConfig.model
             
@@ -324,6 +329,27 @@ fun main() = runBlocking {
             }
             
             val responseText = httpResponse.body<String>()
+            
+            // Check for OpenRouter errors
+            if (config.provider == "openrouter" && responseText.contains("\"error\"")) {
+                if (responseText.contains("\"code\":404") && responseText.contains("No endpoints found")) {
+                    println("❌ Model not available: ${config.model}")
+                    println("💡 This model might be discontinued or temporarily unavailable.")
+                } else if (responseText.contains("\"code\":400") && responseText.contains("not a valid model ID")) {
+                    println("❌ Invalid model ID: ${config.model}")
+                    println("💡 Please check the model name format.")
+                } else {
+                    println("❌ OpenRouter API Error: ${responseText}")
+                }
+                println("\n🔄 Try these working alternatives:")
+                println("   - google/gemini-2.5-flash-lite (Google Gemini)")
+                println("   - openai/gpt-4o-mini (OpenAI GPT-4o Mini)")
+                println("   - anthropic/claude-3.5-sonnet (Claude 3.5 Sonnet)")
+                println("   - qwen/qwen3-coder:free (Qwen Coder - Free)")
+                println("   - z-ai/glm-4.5-air:free (GLM 4.5 Air - Free)")
+                println("\n💭 Use option 3 in the main menu to change your model.")
+                break
+            }
             
             val assistantResponse = when (config.provider) {
                 "anthropic" -> {
