@@ -86,6 +86,137 @@ fun requestConfigInput(): Config {
     }
 }
 
+suspend fun fetchOpenRouterModels(apiKey: String, client: HttpClient): List<OpenRouterModel> {
+    return try {
+        val response = client.get("https://openrouter.ai/api/v1/models") {
+            header("Authorization", "Bearer $apiKey")
+            contentType(ContentType.Application.Json)
+        }
+        
+        val modelsResponse = response.body<OpenRouterModelsResponse>()
+        modelsResponse.data.sortedWith(compareBy<OpenRouterModel> { !it.isFree }.thenBy { it.provider }.thenBy { it.modelName })
+    } catch (e: Exception) {
+        println("❌ Error fetching models: ${e.message}")
+        emptyList()
+    }
+}
+
+fun displayModelsMenu(models: List<OpenRouterModel>) {
+    if (models.isEmpty()) {
+        println("❌ No models available or error fetching models.")
+        return
+    }
+    
+    val freeModels = models.filter { it.isFree }
+    val paidModels = models.filter { !it.isFree }
+    
+    println("\n🆓 === FREE MODELS (${freeModels.size}) ===")
+    freeModels.forEachIndexed { index, model ->
+        println("${index + 1}. ${model.id}")
+        println("   📝 ${model.name}")
+        if (model.context_length != null) {
+            println("   🔤 Context: ${model.context_length} tokens")
+        }
+        println()
+    }
+    
+    println("💰 === PAID MODELS (${paidModels.size}) === (showing first 20)")
+    paidModels.take(20).forEachIndexed { index, model ->
+        val actualIndex = freeModels.size + index + 1
+        println("$actualIndex. ${model.id}")
+        println("   📝 ${model.name}")
+        println("   💵 \$${model.pricing.prompt}/1k prompt tokens, \$${model.pricing.completion}/1k completion tokens")
+        if (model.context_length != null) {
+            println("   🔤 Context: ${model.context_length} tokens")
+        }
+        println()
+    }
+    
+    println("ℹ️  Total models: ${models.size} (${freeModels.size} free, ${paidModels.size} paid)")
+    if (paidModels.size > 20) {
+        println("   (Showing first 20 paid models. ${paidModels.size - 20} more available)")
+    }
+}
+
+suspend fun selectModelFromList(existingConfig: Config, client: HttpClient): Config {
+    println("\n🔍 Fetching latest OpenRouter models...")
+    val models = fetchOpenRouterModels(existingConfig.apiKey, client)
+    
+    if (models.isEmpty()) {
+        println("❌ Could not fetch models. Using existing model: ${existingConfig.model}")
+        return existingConfig
+    }
+    
+    displayModelsMenu(models)
+    
+    println("\n📋 Options:")
+    println("• Enter a number (1-${models.size}) to select a model")
+    println("• Type 'free' to show only free models")
+    println("• Type 'search <term>' to search models (e.g., 'search claude')")
+    println("• Press Enter to keep current model: ${existingConfig.model}")
+    
+    print("\nYour choice: ")
+    val input = readlnOrNull()?.trim() ?: ""
+    
+    when {
+        input.isEmpty() -> {
+            println("✅ Keeping current model: ${existingConfig.model}")
+            return existingConfig
+        }
+        input.lowercase() == "free" -> {
+            val freeModels = models.filter { it.isFree }
+            println("\n🆓 === FREE MODELS ONLY ===")
+            freeModels.forEachIndexed { index, model ->
+                println("${index + 1}. ${model.id} - ${model.name}")
+            }
+            print("\nSelect free model (1-${freeModels.size}): ")
+            val freeChoice = readlnOrNull()?.toIntOrNull()
+            if (freeChoice != null && freeChoice in 1..freeModels.size) {
+                val selectedModel = freeModels[freeChoice - 1]
+                println("✅ Selected: ${selectedModel.id} (FREE)")
+                return existingConfig.copy(model = selectedModel.id)
+            }
+        }
+        input.lowercase().startsWith("search ") -> {
+            val searchTerm = input.substring(7).lowercase()
+            val matchingModels = models.filter { 
+                it.id.lowercase().contains(searchTerm) || 
+                it.name.lowercase().contains(searchTerm) 
+            }
+            if (matchingModels.isNotEmpty()) {
+                println("\n🔍 Search results for '$searchTerm':")
+                matchingModels.take(10).forEachIndexed { index, model ->
+                    val freeText = if (model.isFree) " [FREE]" else ""
+                    println("${index + 1}. ${model.id}$freeText")
+                    println("   📝 ${model.name}")
+                }
+                print("\nSelect model (1-${matchingModels.take(10).size}): ")
+                val searchChoice = readlnOrNull()?.toIntOrNull()
+                if (searchChoice != null && searchChoice in 1..matchingModels.take(10).size) {
+                    val selectedModel = matchingModels[searchChoice - 1]
+                    val freeText = if (selectedModel.isFree) " (FREE)" else " (PAID)"
+                    println("✅ Selected: ${selectedModel.id}$freeText")
+                    return existingConfig.copy(model = selectedModel.id)
+                }
+            } else {
+                println("❌ No models found matching '$searchTerm'")
+            }
+        }
+        else -> {
+            val choice = input.toIntOrNull()
+            if (choice != null && choice in 1..models.size) {
+                val selectedModel = models[choice - 1]
+                val freeText = if (selectedModel.isFree) " (FREE)" else " (PAID)"
+                println("✅ Selected: ${selectedModel.id}$freeText")
+                return existingConfig.copy(model = selectedModel.id)
+            }
+        }
+    }
+    
+    println("❌ Invalid selection. Keeping current model: ${existingConfig.model}")
+    return existingConfig
+}
+
 fun changeModelOnly(existingConfig: Config): Config {
     return when (existingConfig.provider) {
         "anthropic" -> {
@@ -205,6 +336,42 @@ data class OpenRouterUsage(
     val completion_tokens_details: TokenDetails? = null
 )
 
+// OPENROUTER MODELS API STRUCTURES
+@Serializable
+data class ModelPricing(
+    val prompt: String,
+    val completion: String,
+    val request: String? = null,
+    val image: String? = null,
+    val audio: String? = null,
+    val web_search: String? = null,
+    val internal_reasoning: String? = null
+)
+
+@Serializable
+data class OpenRouterModel(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val pricing: ModelPricing,
+    val context_length: Int? = null,
+    val created: Long? = null
+) {
+    val isFree: Boolean
+        get() = pricing.prompt == "0" && pricing.completion == "0"
+        
+    val provider: String
+        get() = id.substringBefore("/")
+        
+    val modelName: String
+        get() = id.substringAfter("/")
+}
+
+@Serializable
+data class OpenRouterModelsResponse(
+    val data: List<OpenRouterModel>
+)
+
 @Serializable
 data class OpenRouterApiResponse(
     val id: String,
@@ -239,8 +406,14 @@ fun showStartupMenu(config: Config? = null): Int {
         println("1. Use existing configuration")
         println("2. Configure new API")
         println("3. Change model only (keep same API key)")
-        println("4. Reconfigure existing setup")
-        print("Enter choice (1, 2, 3, or 4): ")
+        if (it.provider == "openrouter") {
+            println("4. Browse all OpenRouter models (free/paid)")
+            println("5. Reconfigure existing setup")
+            print("Enter choice (1, 2, 3, 4, or 5): ")
+        } else {
+            println("4. Reconfigure existing setup")
+            print("Enter choice (1, 2, 3, or 4): ")
+        }
     } ?: run {
         println("1. Use existing configuration")
         println("2. Configure new API")
@@ -264,23 +437,49 @@ fun main() = runBlocking {
         }
         else -> {
             val existingConfig = loadConfigUsingOkio(configFilePath) ?: return@runBlocking
-            when (showStartupMenu(existingConfig)) {
-                2 -> {
+            
+            // Create HTTP client early for model browsing
+            val client = HttpClient(Darwin) {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    })
+                }
+            }
+            
+            val menuChoice = showStartupMenu(existingConfig)
+            when {
+                menuChoice == 2 -> {
+                    client.close()
                     val newConfig = requestConfigInput()
                     saveConfigUsingOkio(newConfig, configFilePath)
                     newConfig
                 }
-                3 -> {
+                menuChoice == 3 -> {
                     val updatedConfig = changeModelOnly(existingConfig)
+                    client.close()
                     saveConfigUsingOkio(updatedConfig, configFilePath)
                     updatedConfig
                 }
-                4 -> {
+                menuChoice == 4 && existingConfig.provider == "openrouter" -> {
+                    val updatedConfig = selectModelFromList(existingConfig, client)
+                    client.close()
+                    saveConfigUsingOkio(updatedConfig, configFilePath)
+                    updatedConfig
+                }
+                (menuChoice == 4 && existingConfig.provider != "openrouter") || menuChoice == 5 -> {
+                    client.close()
                     val newConfig = requestConfigInput()
                     saveConfigUsingOkio(newConfig, configFilePath)
                     newConfig
                 }
-                else -> existingConfig
+                else -> {
+                    client.close()
+                    existingConfig
+                }
             }
         }
     }

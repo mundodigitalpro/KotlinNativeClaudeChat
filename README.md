@@ -6,6 +6,7 @@ Esta aplicación de chat desarrollada en Kotlin Native permite interactuar con m
 
 - **Multi-Proveedor**: Soporte para Anthropic Claude y OpenRouter APIs
 - **400+ Modelos de IA**: Acceso a modelos de OpenAI, Anthropic, Google, Mistral y más a través de OpenRouter
+- **Navegador de Modelos**: Lista completa en tiempo real con filtros gratuito/pagado y búsqueda
 - **Configuración Dinámica**: Menú interactivo para seleccionar y configurar proveedores
 - **Multiplataforma**: Compatible con macOS, Linux y Windows (Kotlin Native)
 - **Gestión de Configuración**: Carga/guardado automático usando Okio
@@ -122,6 +123,99 @@ Assistant: 15 + 27 = 42
 
 You: [Presiona Enter para salir]
 ```
+
+## 🔍 Navegador de Modelos OpenRouter
+
+### Nueva Funcionalidad: Explorar Todos los Modelos Disponibles
+
+Cuando tienes configurado OpenRouter, aparece una nueva opción en el menú:
+
+```
+=== Kotlin Native AI Chat ===
+Current configuration: OPENROUTER API with model openai/gpt-4o-mini
+1. Use existing configuration
+2. Configure new API
+3. Change model only (keep same API key)
+4. Browse all OpenRouter models (free/paid)  ← NUEVA OPCIÓN
+5. Reconfigure existing setup
+Enter choice (1, 2, 3, 4, or 5): 4
+```
+
+### Funcionalidades del Navegador
+
+**🆓 Filtro de Modelos Gratuitos:**
+```
+🔍 Fetching latest OpenRouter models...
+
+🆓 === FREE MODELS (55) ===
+1. deepseek/deepseek-r1:free
+   📝 DeepSeek: R1 (free)
+   🔤 Context: 163840 tokens
+
+13. google/gemini-2.0-flash-exp:free
+   📝 Google: Gemini 2.0 Flash Experimental (free)
+   🔤 Context: 1048576 tokens
+
+21. meta-llama/llama-3.1-405b-instruct:free
+   📝 Meta: Llama 3.1 405B Instruct (free)
+   🔤 Context: 65536 tokens
+```
+
+**💰 Información de Modelos Pagados:**
+```
+💰 === PAID MODELS (259) === (showing first 20)
+73. anthropic/claude-3.5-sonnet
+   📝 Anthropic: Claude 3.5 Sonnet
+   💵 $0.000003/1k prompt tokens, $0.000015/1k completion tokens
+   🔤 Context: 200000 tokens
+```
+
+**🔍 Opciones de Navegación:**
+```
+📋 Options:
+• Enter a number (1-314) to select a model
+• Type 'free' to show only free models
+• Type 'search <term>' to search models (e.g., 'search claude')
+• Press Enter to keep current model
+```
+
+### Ejemplos de Uso
+
+**Buscar modelos específicos:**
+```
+Your choice: search deepseek
+
+🔍 Search results for 'deepseek':
+1. deepseek/deepseek-chat-v3-0324:free [FREE]
+2. deepseek/deepseek-r1:free [FREE]
+3. deepseek/deepseek-r1-distill-llama-70b:free [FREE]
+```
+
+**Ver solo modelos gratuitos:**
+```
+Your choice: free
+
+🆓 === FREE MODELS ONLY ===
+1. deepseek/deepseek-r1:free - DeepSeek: R1 (free)
+2. google/gemini-2.0-flash-exp:free - Google: Gemini 2.0 Flash Experimental
+3. meta-llama/llama-3.1-405b-instruct:free - Meta: Llama 3.1 405B Instruct
+```
+
+### Modelos Destacados Disponibles
+
+**🆓 Modelos Gratuitos Premium:**
+- **DeepSeek R1** - Modelo de razonamiento avanzado (163K context)
+- **Llama 3.1 405B** - Meta's largest model (65K context)
+- **Google Gemini 2.0 Flash** - Latest Google model (1M context)
+- **NVIDIA Nemotron Ultra 253B** - High-performance model (131K context)
+- **Microsoft MAI DS R1** - Microsoft's reasoning model (163K context)
+
+**💎 Ventajas del Navegador:**
+- **Información en tiempo real** directa de OpenRouter API
+- **314+ modelos** actualizados automáticamente
+- **Precios exactos** para modelos pagados
+- **Filtros inteligentes** por proveedor y tipo
+- **Contexto y capacidades** de cada modelo
 
 ## ⚙️ Configuración
 
@@ -271,7 +365,14 @@ Las contribuciones son bienvenidas. Para contribuir:
 
 ## 🔄 Actualizaciones Recientes
 
-### v1.2.0 (Enero 2025)
+### v1.3.0 (Enero 2025) - 🔍 Navegador de Modelos
+- ✅ **Navegador completo de modelos**: Lista en tiempo real de 314+ modelos OpenRouter
+- ✅ **Filtros avanzados**: Separación clara entre modelos gratuitos (55) y pagados (259)
+- ✅ **Búsqueda inteligente**: Encuentra modelos por nombre, proveedor o características
+- ✅ **Información detallada**: Precios, contexto, descripciones para cada modelo
+- ✅ **Acceso a modelos premium gratuitos**: DeepSeek R1, Llama 405B, Gemini 2.0, NVIDIA Nemotron
+
+### v1.2.0 (Enero 2025) - 🔧 Mejoras Base  
 - ✅ **Cambio de modelo inteligente**: Nueva opción para cambiar solo el modelo manteniendo la API key
 - ✅ **Modelos actualizados**: Lista corregida con modelos verificados funcionando
 - ✅ **Manejo de errores mejorado**: Detección específica de errores de OpenRouter con sugerencias
