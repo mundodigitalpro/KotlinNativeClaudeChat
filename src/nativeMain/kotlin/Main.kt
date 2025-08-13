@@ -83,6 +83,33 @@ fun requestConfigInput(): Config {
     }
 }
 
+fun changeModelOnly(existingConfig: Config): Config {
+    return when (existingConfig.provider) {
+        "anthropic" -> {
+            println("\nChanging Anthropic model (keeping existing API key)")
+            print("Enter new model name (current: ${existingConfig.model}): ")
+            val newModel = readlnOrNull()?.takeIf { it.isNotBlank() } ?: existingConfig.model
+            
+            existingConfig.copy(model = newModel)
+        }
+        "openrouter" -> {
+            println("\nChanging OpenRouter model (keeping existing API key)")
+            println("Popular OpenRouter models:")
+            println("- openai/gpt-4o")
+            println("- openai/gpt-4o-mini")
+            println("- anthropic/claude-3.5-sonnet")
+            println("- google/gemini-2.0-flash-exp")
+            println("- mistralai/mistral-large")
+            println("- meta-llama/llama-3.1-8b-instruct")
+            print("Enter new model name (current: ${existingConfig.model}): ")
+            val newModel = readlnOrNull()?.takeIf { it.isNotBlank() } ?: existingConfig.model
+            
+            existingConfig.copy(model = newModel)
+        }
+        else -> existingConfig
+    }
+}
+
 fun saveConfigUsingOkio(config: Config, configFilePath: Path) {
     try {
         val fileSystem = FileSystem.SYSTEM
@@ -199,12 +226,22 @@ data class ErrorResponse(
     val error: ApiError
 )
 
-fun showStartupMenu(): Int {
+fun showStartupMenu(config: Config? = null): Int {
     println("=== Kotlin Native AI Chat ===")
-    println("1. Use existing configuration")
-    println("2. Configure new API")
-    println("3. Reconfigure existing setup")
-    print("Enter choice (1, 2, or 3): ")
+    
+    config?.let {
+        println("Current configuration: ${it.provider.uppercase()} API with model ${it.model}")
+        println("1. Use existing configuration")
+        println("2. Configure new API")
+        println("3. Change model only (keep same API key)")
+        println("4. Reconfigure existing setup")
+        print("Enter choice (1, 2, 3, or 4): ")
+    } ?: run {
+        println("1. Use existing configuration")
+        println("2. Configure new API")
+        println("3. Reconfigure existing setup")
+        print("Enter choice (1, 2, or 3): ")
+    }
     
     return readlnOrNull()?.toIntOrNull() ?: 1
 }
@@ -221,15 +258,24 @@ fun main() = runBlocking {
             newConfig
         }
         else -> {
-            when (showStartupMenu()) {
-                2, 3 -> {
+            val existingConfig = loadConfigUsingOkio(configFilePath) ?: return@runBlocking
+            when (showStartupMenu(existingConfig)) {
+                2 -> {
                     val newConfig = requestConfigInput()
                     saveConfigUsingOkio(newConfig, configFilePath)
                     newConfig
                 }
-                else -> {
-                    loadConfigUsingOkio(configFilePath) ?: return@runBlocking
+                3 -> {
+                    val updatedConfig = changeModelOnly(existingConfig)
+                    saveConfigUsingOkio(updatedConfig, configFilePath)
+                    updatedConfig
                 }
+                4 -> {
+                    val newConfig = requestConfigInput()
+                    saveConfigUsingOkio(newConfig, configFilePath)
+                    newConfig
+                }
+                else -> existingConfig
             }
         }
     }
