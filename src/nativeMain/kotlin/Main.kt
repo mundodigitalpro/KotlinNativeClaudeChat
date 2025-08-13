@@ -25,20 +25,62 @@ fun loadConfigUsingOkio(configFilePath: Path): Config? {
     }
 }
 
-fun requestConfigInput(): Config {
+fun selectApiProvider(): ApiProvider {
+    println("Select API Provider:")
+    println("1. Anthropic (Claude)")
+    println("2. OpenRouter (Multiple AI Models)")
+    print("Enter choice (1 or 2): ")
+    
+    return when (readlnOrNull()) {
+        "2" -> ApiProvider.OPENROUTER
+        else -> ApiProvider.ANTHROPIC
+    }
+}
+
+fun requestAnthropicConfig(): Config {
     print("Enter Anthropic API version (e.g., 2023-06-01): ")
     val version = readlnOrNull() ?: "2023-06-01"
     
     print("Enter your Anthropic API key: ")
     val apiKey = readlnOrNull() ?: ""
     
-    print("Enter model name (e.g., claude-3-sonnet-20240229): ")
-    val model = readlnOrNull() ?: "claude-3-sonnet-20240229"
+    print("Enter model name (e.g., claude-3-5-haiku-20241022): ")
+    val model = readlnOrNull() ?: "claude-3-5-haiku-20241022"
     
-    print("Enter API URL (e.g., https://api.anthropic.com/v1/messages): ")
-    val url = readlnOrNull() ?: "https://api.anthropic.com/v1/messages"
+    val url = "https://api.anthropic.com/v1/messages"
     
-    return Config(version, apiKey, model, url)
+    return Config("anthropic", version, apiKey, model, url)
+}
+
+fun requestOpenRouterConfig(): Config {
+    print("Enter your OpenRouter API key: ")
+    val apiKey = readlnOrNull() ?: ""
+    
+    println("\nPopular OpenRouter models:")
+    println("- openai/gpt-4o")
+    println("- anthropic/claude-3.5-sonnet")
+    println("- google/gemini-2.0-flash-exp")
+    println("- mistralai/mistral-large")
+    print("Enter model name: ")
+    val model = readlnOrNull() ?: "openai/gpt-4o"
+    
+    print("Enter your app/site name (optional): ")
+    val appName = readlnOrNull()?.takeIf { it.isNotBlank() }
+    
+    print("Enter your site URL (optional): ")
+    val siteUrl = readlnOrNull()?.takeIf { it.isNotBlank() }
+    
+    val url = "https://openrouter.ai/api/v1/chat/completions"
+    
+    return Config("openrouter", null, apiKey, model, url, appName, siteUrl)
+}
+
+fun requestConfigInput(): Config {
+    val provider = selectApiProvider()
+    return when (provider) {
+        ApiProvider.ANTHROPIC -> requestAnthropicConfig()
+        ApiProvider.OPENROUTER -> requestOpenRouterConfig()
+    }
 }
 
 fun saveConfigUsingOkio(config: Config, configFilePath: Path) {
@@ -54,21 +96,34 @@ fun saveConfigUsingOkio(config: Config, configFilePath: Path) {
     }
 }
 
+enum class ApiProvider { ANTHROPIC, OPENROUTER }
+
 @Serializable
 data class Config(
-    val anthropicVersion: String,
-    val anthropicApiKey: String,
+    val provider: String,
+    val anthropicVersion: String? = null,
+    val apiKey: String,
     val model: String,
-    val url: String
+    val url: String,
+    val appName: String? = null,
+    val siteUrl: String? = null
 )
 
 @Serializable
-data class Message(val role: String, val content: String)
+data class Message(
+    val role: String, 
+    val content: String,
+    val refusal: String? = null,
+    val reasoning: String? = null
+)
 
 @Serializable
-data class RequestBody(val model: String, val messages: List<Message>, val max_tokens: Int)
+data class AnthropicRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int)
 
-// ESTRUCTURAS CORREGIDAS
+@Serializable
+data class OpenRouterRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int)
+
+// ANTHROPIC API STRUCTURES
 @Serializable
 data class ContentBlock(
     val type: String, // "text"
@@ -76,7 +131,7 @@ data class ContentBlock(
 )
 
 @Serializable
-data class ApiResponse(
+data class AnthropicApiResponse(
     val id: String,
     val type: String, // "message"
     val role: String, // "assistant"
@@ -93,6 +148,45 @@ data class Usage(
     val output_tokens: Int
 )
 
+// OPENROUTER API STRUCTURES
+@Serializable
+data class OpenRouterChoice(
+    val index: Int,
+    val message: Message,
+    val finish_reason: String? = null,
+    val logprobs: String? = null,
+    val native_finish_reason: String? = null
+)
+
+@Serializable
+data class TokenDetails(
+    val cached_tokens: Int? = null,
+    val reasoning_tokens: Int? = null
+)
+
+@Serializable  
+data class OpenRouterUsage(
+    val prompt_tokens: Int,
+    val completion_tokens: Int,
+    val total_tokens: Int,
+    val prompt_tokens_details: TokenDetails? = null,
+    val completion_tokens_details: TokenDetails? = null
+)
+
+@Serializable
+data class OpenRouterApiResponse(
+    val id: String,
+    @kotlinx.serialization.SerialName("object")
+    val objectType: String,
+    val created: Long,
+    val model: String,
+    val choices: List<OpenRouterChoice>,
+    val usage: OpenRouterUsage,
+    val provider: String? = null,
+    val warnings: List<String>? = null,
+    val system_fingerprint: String? = null
+)
+
 @Serializable
 data class ApiError(
     val type: String,
@@ -105,19 +199,42 @@ data class ErrorResponse(
     val error: ApiError
 )
 
+fun showStartupMenu(): Int {
+    println("=== Kotlin Native AI Chat ===")
+    println("1. Use existing configuration")
+    println("2. Configure new API")
+    println("3. Reconfigure existing setup")
+    print("Enter choice (1, 2, or 3): ")
+    
+    return readlnOrNull()?.toIntOrNull() ?: 1
+}
+
 fun main() = runBlocking {
     val configFilePath = "config.json".toPath()
     val fileSystem = FileSystem.SYSTEM
 
-    val config: Config = if (fileSystem.exists(configFilePath)) {
-        loadConfigUsingOkio(configFilePath) ?: return@runBlocking
-    } else {
-        val newConfig = requestConfigInput()
-        saveConfigUsingOkio(newConfig, configFilePath)
-        newConfig
+    val config: Config = when {
+        !fileSystem.exists(configFilePath) -> {
+            println("No configuration found. Setting up new API...")
+            val newConfig = requestConfigInput()
+            saveConfigUsingOkio(newConfig, configFilePath)
+            newConfig
+        }
+        else -> {
+            when (showStartupMenu()) {
+                2, 3 -> {
+                    val newConfig = requestConfigInput()
+                    saveConfigUsingOkio(newConfig, configFilePath)
+                    newConfig
+                }
+                else -> {
+                    loadConfigUsingOkio(configFilePath) ?: return@runBlocking
+                }
+            }
+        }
     }
 
-    println("Configuración cargada: $config")
+    println("Configuration loaded: ${config.provider.uppercase()} API with model ${config.model}")
 
     val client = HttpClient(Darwin) {
         install(ContentNegotiation) {
@@ -125,6 +242,7 @@ fun main() = runBlocking {
                 prettyPrint = true
                 isLenient = true
                 ignoreUnknownKeys = true
+                coerceInputValues = true
             })
         }
     }
@@ -135,39 +253,75 @@ fun main() = runBlocking {
         print("You: ")
         val userInput = readlnOrNull() ?: break
         conversation.add(Message("user", userInput))
-        val requestBody = RequestBody(config.model, conversation, 1024)
-
         try {
-            val httpResponse = client.post(config.url) {
-                header("x-api-key", config.anthropicApiKey)
-                header("anthropic-version", config.anthropicVersion)
-                contentType(ContentType.Application.Json)
-                setBody(requestBody)
+            val httpResponse = when (config.provider) {
+                "anthropic" -> {
+                    val requestBody = AnthropicRequestBody(config.model, conversation, 1024)
+                    client.post(config.url) {
+                        header("x-api-key", config.apiKey)
+                        header("anthropic-version", config.anthropicVersion ?: "2023-06-01")
+                        contentType(ContentType.Application.Json)
+                        setBody(requestBody)
+                    }
+                }
+                "openrouter" -> {
+                    val requestBody = OpenRouterRequestBody(config.model, conversation, 1024)
+                    client.post(config.url) {
+                        header("Authorization", "Bearer ${config.apiKey}")
+                        config.siteUrl?.let { header("HTTP-Referer", it) }
+                        config.appName?.let { header("X-Title", it) }
+                        contentType(ContentType.Application.Json)
+                        setBody(requestBody)
+                    }
+                }
+                else -> throw IllegalArgumentException("Unknown provider: ${config.provider}")
             }
             
             val responseText = httpResponse.body<String>()
             
-            // Check if it's an error response
-            if (responseText.contains("\"type\":\"error\"")) {
-                val errorResponse = Json.decodeFromString<ErrorResponse>(responseText)
-                println("API Error: ${errorResponse.error.message}")
-                break
-            }
-            
-            // Parse as successful response
-            val response = Json.decodeFromString<ApiResponse>(responseText)
+            val assistantResponse = when (config.provider) {
+                "anthropic" -> {
+                    // Check if it's an error response
+                    if (responseText.contains("\"type\":\"error\"")) {
+                        val errorResponse = Json.decodeFromString<ErrorResponse>(responseText)
+                        println("API Error: ${errorResponse.error.message}")
+                        break
+                    }
+                    
+                    // Parse as successful Anthropic response
+                    val response = Json.decodeFromString<AnthropicApiResponse>(responseText)
 
-            // Process response content
-            response.content.forEach { contentBlock ->
-                if (contentBlock.type == "text") {
-                    println("Assistant: ${contentBlock.text}")
+                    // Process response content
+                    response.content.forEach { contentBlock ->
+                        if (contentBlock.type == "text") {
+                            println("Assistant: ${contentBlock.text}")
+                        }
+                    }
+
+                    // Extract assistant response text
+                    response.content
+                        .filter { it.type == "text" }
+                        .joinToString("") { it.text }
+                }
+                "openrouter" -> {
+                    // Parse as OpenRouter response
+                    val response = Json.decodeFromString<OpenRouterApiResponse>(responseText)
+                    
+                    if (response.choices.isEmpty()) {
+                        println("API Error: No response choices received")
+                        break
+                    }
+                    
+                    val assistantMessage = response.choices[0].message.content
+                    println("Assistant: $assistantMessage")
+                    
+                    assistantMessage
+                }
+                else -> {
+                    println("Unknown provider: ${config.provider}")
+                    break
                 }
             }
-
-            // Add assistant response to conversation
-            val assistantResponse = response.content
-                .filter { it.type == "text" }
-                .joinToString("") { it.text }
 
             conversation.add(Message("assistant", assistantResponse))
 
