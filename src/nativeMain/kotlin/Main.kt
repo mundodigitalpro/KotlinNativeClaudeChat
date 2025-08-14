@@ -401,6 +401,7 @@ suspend fun selectModelFromList(existingConfig: Config, client: HttpClient): Con
     }
     
     var selectedConfig = existingConfig
+    var shouldSearch = false
     val freeModels = models.filter { it.isFree }
     val paidModels = models.filter { !it.isFree }
     
@@ -431,26 +432,39 @@ suspend fun selectModelFromList(existingConfig: Config, client: HttpClient): Con
     }
     mainMenuItems.add(MenuItem("paid_models", "💰 Browse Paid Models (showing ${paidMenuItems.size}/${paidModels.size})", submenu = paidMenuItems))
     
-    // Add search functionality as text-based fallback
+    // Add search functionality - use flag to execute outside NavigationController
     mainMenuItems.add(MenuItem("search", "🔍 Search models (text-based)", action = {
-        // Fallback to legacy search functionality
-        searchModelsLegacy(models, existingConfig)?.let { newConfig ->
-            selectedConfig = newConfig
-        }
+        shouldSearch = true
     }))
     
     val controller = NavigationController()
     controller.navigate(mainMenuItems, "OpenRouter Model Browser")
+    
+    // Execute search outside NavigationController if requested
+    if (shouldSearch) {
+        searchModelsLegacy(models, existingConfig)?.let { newConfig ->
+            selectedConfig = newConfig
+        }
+        // Give user time to see the result
+        println("\n${NavigationController.ANSI_CYAN}Press Enter to continue...${NavigationController.ANSI_RESET}")
+        readlnOrNull()
+    }
     
     return selectedConfig
 }
 
 // Legacy search function for model searching
 fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): Config? {
+    // Ensure we're completely out of navigation mode
+    println("\n${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_BOLD}${NavigationController.ANSI_BLUE}🔍 Model Search${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_YELLOW}You can now type normally. Terminal echo is enabled.${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
+    
     // Restore terminal to normal mode for text input
     ensureNormalTerminalMode()
     
-    print("Enter search term: ")
+    print("\n${NavigationController.ANSI_GREEN}Enter search term:${NavigationController.ANSI_RESET} ")
     val searchTerm = readlnOrNull()?.lowercase() ?: return null
     
     val matchingModels = models.filter { 
@@ -465,16 +479,18 @@ fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): C
             println("${index + 1}. ${model.id}$freeText")
             println("   📝 ${model.name}")
         }
-        print("\nSelect model (1-${matchingModels.take(10).size}): ")
+        print("\n${NavigationController.ANSI_GREEN}Select model (1-${matchingModels.take(10).size}):${NavigationController.ANSI_RESET} ")
         val searchChoice = readlnOrNull()?.toIntOrNull()
         if (searchChoice != null && searchChoice in 1..matchingModels.take(10).size) {
             val selectedModel = matchingModels[searchChoice - 1]
             val freeText = if (selectedModel.isFree) " (FREE)" else " (PAID)"
-            println("✅ Selected: ${selectedModel.id}$freeText")
+            println("${NavigationController.ANSI_GREEN}✅ Selected: ${selectedModel.id}$freeText${NavigationController.ANSI_RESET}")
             return existingConfig.copy(model = selectedModel.id)
+        } else {
+            println("${NavigationController.ANSI_YELLOW}❌ Invalid selection. No model selected.${NavigationController.ANSI_RESET}")
         }
     } else {
-        println("❌ No models found matching '$searchTerm'")
+        println("${NavigationController.ANSI_YELLOW}❌ No models found matching '$searchTerm'${NavigationController.ANSI_RESET}")
     }
     
     return null
