@@ -124,6 +124,48 @@ Assistant: 15 + 27 = 42
 You: [Presiona Enter para salir]
 ```
 
+## 🧠 Modelos con Capacidades de Razonamiento
+
+### Soporte para GPT-oss-20b y Modelos Similares
+
+La aplicación ahora soporta completamente modelos que incluyen información de razonamiento en sus respuestas, como `openai/gpt-oss-20b`. Estos modelos proporcionan:
+
+#### Ejemplo de Conversación con Reasoning:
+
+```
+You: hola
+🧠 Model Reasoning:
+We have an initial conversation: user says "hola" in Spanish. The developer message: no special instructions. We should respond in Spanish likely. Also guidelines: Friendly, polite. It's a short conversation. We can say "¡Hola! ¿Cómo puedo ayudarte hoy?" This is the best.
+---
+🔍 Reasoning Details:
+Type: reasoning.text
+Content: We have an initial conversation: user says "hola" in Spanish. The developer message: no special instructions. We should respond in Spanish likely. Also guidelines: Friendly, polite. It's a short conversation. We can say "¡Hola! ¿Cómo puedo ayudarte hoy?" This is the best.
+---
+Assistant: ¡Hola! ¿En qué puedo ayudarte hoy?
+```
+
+#### Características del Sistema de Reasoning:
+
+- **🧠 Razonamiento General**: Muestra el proceso de pensamiento global del modelo
+- **🔍 Detalles de Razonamiento**: Desglosa los pasos específicos del razonamiento
+- **📝 Información Contextual**: Incluye tipo de razonamiento, formato e índice
+- **🎯 Transparencia**: Permite entender cómo el modelo llega a sus respuestas
+
+#### Modelos Compatibles:
+
+- **`openai/gpt-oss-20b`**: Modelo open-source de OpenAI con capacidades de razonamiento
+- **Futuros modelos**: El sistema está preparado para soportar otros modelos con estructura similar
+
+#### Estructura Técnica:
+
+La aplicación maneja automáticamente los campos:
+- `reasoning`: Texto general del proceso de razonamiento
+- `reasoning_details`: Array con detalles específicos incluyendo:
+  - `type`: Tipo de razonamiento (ej: "reasoning.text")
+  - `text`: Contenido detallado del razonamiento  
+  - `format`: Formato del razonamiento
+  - `index`: Índice en la secuencia de razonamiento
+
 ## 🔍 Navegador de Modelos OpenRouter
 
 ### Nueva Funcionalidad: Explorar Todos los Modelos Disponibles
@@ -361,9 +403,15 @@ Las contribuciones son bienvenidas. Para contribuir:
 - [ ] Guardado de historial de conversaciones
 - [ ] Interfaz gráfica (Compose Multiplatform)
 - [ ] Configuración de parámetros del modelo (temperatura, max tokens)
-- [ ] Soporte completo para modelos con reasoning tokens (GLM 4.5)
+- [x] **Soporte completo para modelos con reasoning**: GPT-oss-20b con capacidades de razonamiento visible
 
 ## 🔄 Actualizaciones Recientes
+
+### v1.4.0 (Enero 2025) - 🧠 Soporte para Modelos con Reasoning
+- ✅ **Capacidades de razonamiento**: Soporte completo para modelos con reasoning como `openai/gpt-oss-20b`
+- ✅ **Visualización de razonamiento**: Muestra el proceso de pensamiento del modelo antes de la respuesta final
+- ✅ **Parsing de reasoning_details**: Manejo completo de la estructura `reasoning_details` de la API
+- ✅ **Formato mejorado**: Iconos 🧠 y 🔍 para distinguir entre razonamiento general y detalles específicos
 
 ### v1.3.0 (Enero 2025) - 🔍 Navegador de Modelos
 - ✅ **Navegador completo de modelos**: Lista en tiempo real de 314+ modelos OpenRouter

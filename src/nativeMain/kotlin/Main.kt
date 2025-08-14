@@ -273,11 +273,20 @@ data class Config(
 )
 
 @Serializable
+data class ReasoningDetail(
+    val type: String,
+    val text: String? = null,
+    val format: String? = null,
+    val index: Int? = null
+)
+
+@Serializable
 data class Message(
     val role: String, 
     val content: String,
     val refusal: String? = null,
-    val reasoning: String? = null
+    val reasoning: String? = null,
+    val reasoning_details: List<ReasoningDetail>? = null
 )
 
 @Serializable
@@ -583,7 +592,28 @@ fun main() = runBlocking {
                         break
                     }
                     
-                    val assistantMessage = response.choices[0].message.content
+                    val choice = response.choices[0]
+                    val assistantMessage = choice.message.content
+                    
+                    // Display reasoning if available
+                    choice.message.reasoning?.let { reasoning ->
+                        println("🧠 Model Reasoning:")
+                        println("$reasoning")
+                        println("---")
+                    }
+                    
+                    // Display reasoning details if available
+                    choice.message.reasoning_details?.let { reasoningDetails ->
+                        println("🔍 Reasoning Details:")
+                        reasoningDetails.forEach { detail ->
+                            println("Type: ${detail.type}")
+                            detail.text?.let { text ->
+                                println("Content: $text")
+                            }
+                            println("---")
+                        }
+                    }
+                    
                     println("Assistant: $assistantMessage")
                     
                     assistantMessage
