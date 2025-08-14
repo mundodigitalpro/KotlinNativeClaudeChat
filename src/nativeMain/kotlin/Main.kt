@@ -57,7 +57,7 @@ class NavigationController {
         isRunning = true
         
         // Set terminal to raw mode for better key detection
-        system("stty -echo -icanon min 1 time 0")
+        ensureRawTerminalMode()
         
         try {
             while (isRunning) {
@@ -67,7 +67,7 @@ class NavigationController {
             }
         } finally {
             // Restore terminal settings
-            system("stty echo icanon")
+            ensureNormalTerminalMode()
         }
         
         return null
@@ -208,6 +208,15 @@ class NavigationController {
     }
 }
 
+// Terminal management functions
+fun ensureNormalTerminalMode() {
+    system("stty echo icanon")
+}
+
+fun ensureRawTerminalMode() {
+    system("stty -echo -icanon min 1 time 0")
+}
+
 // Chat control functions
 enum class ChatCommand {
     CONTINUE,     // Continue chatting normally
@@ -276,6 +285,9 @@ fun selectApiProvider(): ApiProvider {
 }
 
 fun requestAnthropicConfig(): Config {
+    // Ensure terminal is in normal mode for text input
+    ensureNormalTerminalMode()
+    
     print("Enter Anthropic API version (e.g., 2023-06-01): ")
     val version = readlnOrNull() ?: "2023-06-01"
     
@@ -291,6 +303,9 @@ fun requestAnthropicConfig(): Config {
 }
 
 fun requestOpenRouterConfig(): Config {
+    // Ensure terminal is in normal mode for text input
+    ensureNormalTerminalMode()
+    
     print("Enter your OpenRouter API key: ")
     val apiKey = readlnOrNull() ?: ""
     
@@ -432,6 +447,9 @@ suspend fun selectModelFromList(existingConfig: Config, client: HttpClient): Con
 
 // Legacy search function for model searching
 fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): Config? {
+    // Restore terminal to normal mode for text input
+    ensureNormalTerminalMode()
+    
     print("Enter search term: ")
     val searchTerm = readlnOrNull()?.lowercase() ?: return null
     
@@ -463,6 +481,9 @@ fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): C
 }
 
 fun changeModelOnly(existingConfig: Config): Config {
+    // Ensure terminal is in normal mode for text input
+    ensureNormalTerminalMode()
+    
     return when (existingConfig.provider) {
         "anthropic" -> {
             println("\nChanging Anthropic model (keeping existing API key)")
