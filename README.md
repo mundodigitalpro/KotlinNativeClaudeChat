@@ -111,18 +111,61 @@ Enter model name (e.g., claude-3-5-haiku-20241022): claude-3-5-sonnet-20241022
 Configuration loaded: ANTHROPIC API with model claude-3-5-sonnet-20241022
 ```
 
-### Chatear
-Una vez configurado, puedes chatear normalmente:
+### 💬 Chatear con Comandos Mejorados
 
+Una vez configurado, puedes chatear con comandos especiales para mejor control:
+
+**Inicio del Chat:**
 ```
+✅ Configuration loaded: OPENROUTER API with model openai/gpt-4o-mini
+
+💬 Chat Session Started
+Model: openai/gpt-4o-mini
+Type /help or ? for chat commands
+
 You: ¡Hola! ¿Cómo estás?
 Assistant: ¡Hola! Estoy muy bien, gracias por preguntar. ¿En qué puedo ayudarte hoy?
 
 You: ¿Puedes resolver 15 + 27?
 Assistant: 15 + 27 = 42
-
-You: [Presiona Enter para salir]
 ```
+
+#### 🎮 Comandos de Chat Disponibles
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💬 Chat Commands:
+  /menu or /back  - Return to main menu
+  /exit or /quit  - Exit application
+  /help or ?      - Show this help
+  [Enter]         - Return to main menu (empty message)
+  Type any message to chat with the AI model
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Ejemplos de Uso:**
+```
+You: /help
+[Shows command help]
+
+You: Explícame la física cuántica
+Assistant: La física cuántica es la rama de la física que estudia...
+
+You: /menu
+📋 Returning to main menu...
+[Returns to enhanced navigation menu]
+
+You: /exit
+👋 Goodbye!
+[Exits application cleanly]
+```
+
+#### ✨ Características del Chat Mejorado
+- **Sin más Ctrl+C**: Ya no necesitas forzar la salida con Ctrl+C
+- **Regreso fluido al menú**: Cambia de modelo o configuración sin reiniciar
+- **Comandos intuitivos**: Fáciles de recordar y usar
+- **Ayuda contextual**: Siempre disponible con `/help`
+- **Navegación sin pérdida**: Mantiene tu lugar en la conversación al cambiar configuraciones
 
 ## 🧠 Modelos con Capacidades de Razonamiento
 
@@ -396,8 +439,68 @@ Las contribuciones son bienvenidas. Para contribuir:
 4. Push a la rama: `git push origin feature/nueva-funcionalidad`
 5. Abre un Pull Request
 
+## 🎯 Navegación Mejorada del Menú (NUEVA)
+
+### Sistema de Navegación Interactiva
+
+La aplicación ahora incluye un sistema de navegación completamente renovado que hace que la experiencia sea mucho más fluida:
+
+#### 🎮 Controles de Navegación
+- **↑/↓**: Navegar entre opciones del menú
+- **Enter**: Confirmar selección o entrar a submenú
+- **→**: Entrar a submenú (cuando disponible)
+- **←**: Regresar al menú anterior (cuando aplicable)
+- **Q/Esc**: Salir del menú actual
+- **1-9**: Acceso directo por número (compatibilidad)
+
+#### 🎨 Características Visuales
+- **Resaltado dinámico**: La opción seleccionada se resalta en amarillo con indicador `►`
+- **Breadcrumbs**: Navegación de contexto que muestra tu ubicación actual
+- **Colores intuitivos**: 
+  - 🔵 Azul para breadcrumbs y instrucciones
+  - 🟡 Amarillo para elementos seleccionados
+  - 🟢 Verde para indicadores de submenús (→)
+  - 🔶 Cian para títulos y separadores
+- **Pantalla completa**: El menú ocupa toda la pantalla para mejor visibilidad
+
+#### 📱 Menús Mejorados
+
+**Menú Principal:**
+```
+=== Kotlin Native AI Chat - Enhanced Navigation ===
+📍 Main Menu - Current: OPENROUTER API with model openai/gpt-4o-mini
+
+ ► 1. Use existing configuration
+   2. Configure new API
+   3. Change model only (keep same API key)
+   4. Browse all OpenRouter models (free/paid) →
+   5. Reconfigure existing setup
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Navigation: ↑/↓ Select | Enter Confirm | →/← Submenu | Q/Esc Quit
+Press Enter to execute this action
+```
+
+**Navegador de Modelos OpenRouter:**
+- **Submenús organizados**: Modelos gratuitos y pagados en categorías separadas
+- **Navegación por flechas**: Explora cientos de modelos sin escribir números
+- **Información detallada**: Precios y capacidades visibles directamente
+- **Búsqueda integrada**: Opción de búsqueda por texto como respaldo
+
+#### 🔧 Compatibilidad
+- **Modo legacy**: Mantiene compatibilidad con entrada por números
+- **Fallback inteligente**: Si hay problemas con las flechas, usa números
+- **Restauración de terminal**: El sistema restaura automáticamente la configuración del terminal
+
 ## 📋 Próximas Funcionalidades
 
+- [x] **✅ Navegación mejorada del menú**: Sistema de navegación interactiva implementado
+  - ✅ Navegación con ↑/↓ entre opciones del menú
+  - ✅ Navegación con ←/→ para avanzar/retroceder entre submenús
+  - ✅ Tecla 'q' o 'Esc' para salir sin cerrar la aplicación
+  - ✅ Resaltado visual de la opción seleccionada
+  - ✅ Breadcrumbs para mostrar ubicación actual en el menú
+  - ✅ Navegación fluida sin necesidad de reingresar números constantemente
 - [ ] Soporte para más proveedores (Cohere, Together.ai)
 - [ ] Modo streaming de respuestas
 - [ ] Guardado de historial de conversaciones
@@ -406,6 +509,18 @@ Las contribuciones son bienvenidas. Para contribuir:
 - [x] **Soporte completo para modelos con reasoning**: GPT-oss-20b con capacidades de razonamiento visible
 
 ## 🔄 Actualizaciones Recientes
+
+### v1.5.0 (Enero 2025) - 🎯 Navegación y Chat Mejorados
+- ✅ **Sistema de navegación interactiva**: Navegación completa con flechas ↑/↓/←/→
+- ✅ **Resaltado visual dinámico**: Indicador visual `►` y colores para la opción seleccionada
+- ✅ **Breadcrumbs contextuales**: Muestra la ubicación actual en la navegación
+- ✅ **Menús organizados**: Submenús para modelos gratuitos/pagados de OpenRouter
+- ✅ **Controles intuitivos**: Q/Esc para salir, Enter para confirmar, flechas para navegar
+- ✅ **Compatibilidad legacy**: Mantiene soporte para entrada por números
+- ✅ **Pantalla completa**: Interfaz renovada que usa todo el espacio disponible
+- ✅ **Comandos de chat mejorados**: `/menu`, `/exit`, `/quit`, `/help` para control total
+- ✅ **Navegación fluida**: Regreso al menú desde el chat sin perder configuración
+- ✅ **Sin Ctrl+C necesario**: Salida elegante de cualquier parte de la aplicación
 
 ### v1.4.0 (Enero 2025) - 🧠 Soporte para Modelos con Reasoning
 - ✅ **Capacidades de razonamiento**: Soporte completo para modelos con reasoning como `openai/gpt-oss-20b`
