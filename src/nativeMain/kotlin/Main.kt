@@ -455,16 +455,21 @@ suspend fun selectModelFromList(existingConfig: Config, client: HttpClient): Con
 
 // Legacy search function for model searching
 fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): Config? {
-    // Ensure we're completely out of navigation mode
+    // Ensure we're completely out of navigation mode with multiple terminal resets
     println("\n${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
-    println("${NavigationController.ANSI_BOLD}${NavigationController.ANSI_BLUE}🔍 Model Search${NavigationController.ANSI_RESET}")
-    println("${NavigationController.ANSI_YELLOW}You can now type normally. Terminal echo is enabled.${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_BOLD}${NavigationController.ANSI_BLUE}🔍 Model Search - Text Input Mode${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_YELLOW}Terminal restored to normal mode. You should see your text as you type.${NavigationController.ANSI_RESET}")
     println("${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
     
-    // Restore terminal to normal mode for text input
-    ensureNormalTerminalMode()
+    // Force terminal restoration with multiple commands
+    system("stty echo icanon")
+    system("stty sane")  // Reset to sane defaults
+    
+    // Add a small delay to ensure terminal is ready
+    platform.posix.usleep(100000u) // 100ms
     
     print("\n${NavigationController.ANSI_GREEN}Enter search term:${NavigationController.ANSI_RESET} ")
+    
     val searchTerm = readlnOrNull()?.lowercase() ?: return null
     
     val matchingModels = models.filter { 
