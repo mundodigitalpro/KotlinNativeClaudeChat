@@ -152,7 +152,7 @@ class NavigationController {
         
         println()
         println("${ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${ANSI_RESET}")
-        println("${ANSI_BLUE}Navigation:${ANSI_RESET} Enter number (1-${currentMenu.size}) | Q to quit")
+        println("${ANSI_BLUE}Navigation:${ANSI_RESET} Enter number (1-${currentMenu.size}) | Q/Esc to quit")
         print("${ANSI_GREEN}Your choice:${ANSI_RESET} ")
     }
     
@@ -160,6 +160,8 @@ class NavigationController {
         when {
             input.equals("q", ignoreCase = true) -> isRunning = false
             input.equals("quit", ignoreCase = true) -> isRunning = false
+            input.equals("esc", ignoreCase = true) -> isRunning = false
+            input.equals("escape", ignoreCase = true) -> isRunning = false
             input.toIntOrNull() != null -> {
                 val choice = input.toInt()
                 if (choice in 1..currentMenu.size) {
@@ -171,7 +173,7 @@ class NavigationController {
                 }
             }
             else -> {
-                println("${ANSI_YELLOW}Please enter a number (1-${currentMenu.size}) or 'q' to quit${ANSI_RESET}")
+                println("${ANSI_YELLOW}Please enter a number (1-${currentMenu.size}), 'q', or 'esc' to quit${ANSI_RESET}")
                 platform.posix.usleep(1000000u) // 1 second
             }
         }
