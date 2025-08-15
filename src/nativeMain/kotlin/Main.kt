@@ -56,18 +56,28 @@ class NavigationController {
         breadcrumbs.add(title)
         isRunning = true
         
-        // Set terminal to raw mode for better key detection
-        ensureRawTerminalMode()
+        val useArrowKeys = isInteractiveTerminal()
         
-        try {
-            while (isRunning) {
-                displayMenu()
-                val key = readKey()
-                handleKeyPress(key)
+        if (useArrowKeys) {
+            // Use arrow key navigation in interactive terminal
+            ensureRawTerminalMode()
+            
+            try {
+                while (isRunning) {
+                    displayMenu()
+                    val key = readKey()
+                    handleKeyPress(key)
+                }
+            } finally {
+                ensureNormalTerminalMode()
             }
-        } finally {
-            // Restore terminal settings
-            ensureNormalTerminalMode()
+        } else {
+            // Use number-based navigation with enhanced display
+            while (isRunning) {
+                displayMenuWithPrompt()
+                val input = readlnOrNull()?.trim() ?: ""
+                handleTextInput(input)
+            }
         }
         
         return null
@@ -115,6 +125,54 @@ class NavigationController {
                 println("${ANSI_GREEN}→ Press → or Enter to access submenu${ANSI_RESET}")
             } else {
                 println("${ANSI_YELLOW}Press Enter to execute this action${ANSI_RESET}")
+            }
+        }
+    }
+    
+    private fun displayMenuWithPrompt() {
+        // Clear screen and move cursor to home
+        print(ANSI_CLEAR_SCREEN + ANSI_HOME)
+        
+        // Display title and breadcrumbs
+        println("${ANSI_BOLD}${ANSI_CYAN}=== Kotlin Native AI Chat - Enhanced Navigation ===${ANSI_RESET}")
+        
+        // Show breadcrumbs
+        if (breadcrumbs.isNotEmpty()) {
+            val breadcrumbPath = breadcrumbs.joinToString(" > ")
+            println("${ANSI_BLUE}📍 $breadcrumbPath${ANSI_RESET}")
+        }
+        println()
+        
+        // Display menu items with numbers
+        currentMenu.forEachIndexed { index, item ->
+            val hasSubmenu = if (item.submenu != null) " ${ANSI_GREEN}→${ANSI_RESET}" else ""
+            val itemText = "${ANSI_YELLOW}${item.text}${ANSI_RESET}"
+            println("${ANSI_BOLD}${index + 1}.${ANSI_RESET} $itemText$hasSubmenu")
+        }
+        
+        println()
+        println("${ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${ANSI_RESET}")
+        println("${ANSI_BLUE}Navigation:${ANSI_RESET} Enter number (1-${currentMenu.size}) | Q to quit")
+        print("${ANSI_GREEN}Your choice:${ANSI_RESET} ")
+    }
+    
+    private fun handleTextInput(input: String) {
+        when {
+            input.equals("q", ignoreCase = true) -> isRunning = false
+            input.equals("quit", ignoreCase = true) -> isRunning = false
+            input.toIntOrNull() != null -> {
+                val choice = input.toInt()
+                if (choice in 1..currentMenu.size) {
+                    selectedIndex = choice - 1
+                    executeCurrentAction()
+                } else {
+                    println("${ANSI_YELLOW}Invalid choice. Please enter 1-${currentMenu.size}${ANSI_RESET}")
+                    platform.posix.usleep(1000000u) // 1 second
+                }
+            }
+            else -> {
+                println("${ANSI_YELLOW}Please enter a number (1-${currentMenu.size}) or 'q' to quit${ANSI_RESET}")
+                platform.posix.usleep(1000000u) // 1 second
             }
         }
     }
@@ -209,12 +267,32 @@ class NavigationController {
 }
 
 // Terminal management functions
+fun isInteractiveTerminal(): Boolean {
+    // Check if we're in an interactive terminal by testing if isatty works
+    return try {
+        val result = system("tty > /dev/null 2>&1")
+        result == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
 fun ensureNormalTerminalMode() {
-    system("stty echo icanon")
+    try {
+        system("stty echo icanon 2>/dev/null")
+    } catch (e: Exception) {
+        // Ignore errors - not in a terminal
+    }
 }
 
 fun ensureRawTerminalMode() {
-    system("stty -echo -icanon min 1 time 0")
+    try {
+        if (isInteractiveTerminal()) {
+            system("stty -echo -icanon min 1 time 0 2>/dev/null")
+        }
+    } catch (e: Exception) {
+        // Ignore errors - not in a terminal
+    }
 }
 
 // Chat control functions
