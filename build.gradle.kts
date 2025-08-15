@@ -38,13 +38,45 @@ kotlin {
                 implementation("io.ktor:ktor-client-core:2.3.10")
                 implementation("io.ktor:ktor-client-content-negotiation:2.3.10")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.10")
-                implementation("io.ktor:ktor-client-winhttp:2.3.10")
                 implementation("com.squareup.okio:okio:3.9.0")
-
-
             }
         }
 
         val nativeTest by getting
+        
+        // Platform-specific sources and dependencies
+        targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
+            when (konanTarget.family) {
+                org.jetbrains.kotlin.konan.target.Family.OSX -> {
+                    compilations.getByName("main") {
+                        defaultSourceSet.dependencies {
+                            implementation("io.ktor:ktor-client-darwin:2.3.10")
+                        }
+                    }
+                }
+                org.jetbrains.kotlin.konan.target.Family.MINGW -> {
+                    compilations.getByName("main") {
+                        defaultSourceSet.dependencies {
+                            implementation("io.ktor:ktor-client-winhttp:2.3.10")
+                        }
+                    }
+                }
+                org.jetbrains.kotlin.konan.target.Family.LINUX -> {
+                    compilations.getByName("main") {
+                        defaultSourceSet.dependencies {
+                            implementation("io.ktor:ktor-client-cio:2.3.10")
+                        }
+                    }
+                }
+                else -> {
+                    // Fallback to CIO for other platforms
+                    compilations.getByName("main") {
+                        defaultSourceSet.dependencies {
+                            implementation("io.ktor:ktor-client-cio:2.3.10")
+                        }
+                    }
+                }
+            }
+        }
     }
 }

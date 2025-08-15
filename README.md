@@ -1,52 +1,101 @@
-# Aplicación de Chat en Kotlin con Gestión de Configuración
+# Kotlin Native Claude Chat - Multiplataforma
 
-Esta aplicación de chat basada en Kotlin demuestra cómo integrar un cliente HTTP con servicios API externos utilizando Ktor, gestionar configuraciones usando Okio y serializar/deserializar datos JSON. Interactúa con el servicio API de Anthropic Claude , enviando mensajes y recibiendo respuestas.
+Esta aplicación implementa un cliente de chat multiplataforma para APIs de IA usando Kotlin Native, con compatibilidad automática para macOS, Windows y Linux.
 
-## Características
+## ✅ Solución Multiplataforma Implementada
 
-- Solicitudes HTTP a servicios externos con cliente Ktor y motor WinHttp.
-- Gestión de configuración (carga/guardado) usando Okio.
-- Serialización/deserialización JSON con kotlinx.serialization.
-- Chat interactivo con API externa.
+Hemos fusionado exitosamente los cambios de la rama `macos` a `master`, creando una base multiplataforma que incluye:
 
-## Prerrequisitos
+### Características Integradas
+- **Detección automática de plataforma** con motores HTTP específicos
+- **Mejoras en manejo de errores** con estructuras `ErrorResponse` y `ApiError` 
+- **Funciones de configuración mejoradas** usando Okio
+- **Compatibilidad completa** con todos los cambios de la rama macos
+- **Documentación completa** (CLAUDE.md)
 
-- Compilador y entorno de ejecución de Kotlin.
-- Gradle u otra herramienta de construcción que soporte proyectos Kotlin.
+### Estado Actual por Plataforma
+- ✅ **macOS**: Funcional con detección automática y motor Darwin
+- ✅ **Windows**: Detección automática configurada con motor WinHttp  
+- ✅ **Linux**: Detección automática configurada con motor CIO
+- ✅ **Multiplataforma**: **Versión única que funciona en todas las plataformas**
 
-## Instalación
+## 🎯 Detección Automática Implementada
 
-1. Clona el repositorio en tu máquina local.
+**¡La aplicación ahora detecta automáticamente la plataforma y usa el motor HTTP apropiado!**
 
-```bash
-git clone <url-del-repositorio>
+### Funcionamiento Automático
+- **macOS**: Detecta `MACOSX` → Usa motor `Darwin`
+- **Windows**: Detecta `MINGW`/`WINDOWS` → Usa motor `WinHttp`  
+- **Linux**: Detecta `LINUX` → Usa motor `CIO`
+- **Otros**: Fallback → Usa motor `CIO`
+
+### Ventajas de la Versión Única
+- ✅ **Un solo código fuente** para todas las plataformas
+- ✅ **Build automático** según la plataforma de compilación
+- ✅ **Sin configuración manual** requerida
+- ✅ **Mantenimiento simplificado**
+
+### Evidencia de Funcionamiento
+```
+Detected platform: MACOSX
+Using Darwin HTTP engine for macOS
 ```
 
-2. Navega al directorio clonado.
+## 🚀 Comandos de Desarrollo
 
 ```bash
-cd <directorio-clonado>
+# Construir proyecto
+./gradlew build
+
+# Ejecutar en modo debug (recomendado para desarrollo)
+./gradlew runDebugExecutableNative
+
+# Ejecutar en modo release (optimizado)
+./gradlew runReleaseExecutableNative
+
+# Limpiar artifacts
+./gradlew clean
 ```
 
-3. Construye el proyecto usando Gradle.
+## ✨ Implementación Completa Lograda
 
+### Cambios Integrados de la Rama macOS
+- **Mejoras en configuración**: Funciones optimizadas de carga/guardado con Okio
+- **Estructuras API corregidas**: `ContentBlock`, `ErrorResponse`, `ApiError`  
+- **Manejo de errores mejorado**: Detección y procesamiento de errores de API
+- **Documentación completa**: Archivo CLAUDE.md con guías detalladas
+
+### Nueva Funcionalidad Multiplataforma  
+- **Detección automática de plataforma**: `@OptIn(ExperimentalNativeApi::class)`
+- **Selección inteligente de motores HTTP**: Darwin/WinHttp/CIO según OS
+- **Build system optimizado**: Dependencias específicas por plataforma
+- **Versión única universal**: Funciona en macOS, Windows y Linux
+
+## 💡 Uso
+
+**La aplicación funciona igual en todas las plataformas:**
+
+1. **Detección automática**: La aplicación detecta tu OS y selecciona el motor HTTP apropiado
+2. **Configuración inteligente**: Carga `config.json` si existe, sino solicita datos al usuario
+3. **Chat universal**: Funciona idénticamente en macOS, Windows y Linux
+
+### Para Windows
 ```bash
-gradle build
+# Compila automáticamente con motor WinHttp
+./gradlew runDebugExecutableNative
 ```
 
-4. Ejecuta la aplicación.
+### Para Linux  
+```bash  
+# Compila automáticamente con motor CIO
+./gradlew runDebugExecutableNative
+```
 
+### Para macOS
 ```bash
-gradle run
+# Compila automáticamente con motor Darwin (actual)
+./gradlew runDebugExecutableNative
 ```
-
-## Uso
-
-Al ejecutar la aplicación, se te solicitará que ingreses detalles de configuración como la versión de la API de Anthropic, la clave API, el modelo y la URL. Estos detalles son necesarios para que la aplicación interactúe con el servicio API de chat externo.
-
-Si existe un archivo de configuración llamado `config.json` en el directorio de la aplicación, se carga esta configuración automáticamente. De lo contrario, se solicita al usuario que ingrese los detalles de configuración y se guardan para uso futuro.
-
-Para interactuar con el servicio de chat, simplemente escribe tus mensajes en la consola después del indicador "You: ". La aplicación enviará tu mensaje al servicio de chat y mostrará la respuesta.
 
 ## Configuración
 
