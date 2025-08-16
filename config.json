@@ -1,1 +1,1 @@
-{"provider":"anthropic","anthropicVersion":"test","apiKey":"","model":"test-model","url":"https://api.anthropic.com/v1/messages"}
+{"provider":"openrouter","apiKey":"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","model":"z-ai/glm-4.5-air:free","url":"https://openrouter.ai/api/v1/chat/completions"}
