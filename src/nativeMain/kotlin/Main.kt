@@ -816,8 +816,8 @@ fun showStartupMenu(config: Config? = null): Int {
     return showEnhancedStartupMenu(config)
 }
 
-suspend fun runChatSession(config: Config): Boolean {
-    val client = HttpClient(Darwin) {
+fun createPlatformHttpClient(): HttpClient {
+    return HttpClient(Darwin) {
         install(ContentNegotiation) {
             json(Json {
                 prettyPrint = true
@@ -825,42 +825,15 @@ suspend fun runChatSession(config: Config): Boolean {
                 ignoreUnknownKeys = true
                 coerceInputValues = true
             })
-        )
-        
-        try {
-            navigationController.navigate(mainMenu, "AI Chat - Main Menu")
-        } catch (e: Exception) {
-            // If navigation fails, fall back to simple menu
-            ensureNormalTerminalMode()
-            println("\nFallback to simple menu...")
-            println("1. Start Chat")
-            println("2. Show Config") 
-            println("3. Change Model")
-            println("4. Quit")
-            print("Choose: ")
-            
-            when (readlnOrNull()) {
-                "1" -> {
-                    println("Starting chat session...")
-                    startChatSession(currentConfig)
-                }
-                "2" -> {
-                    println("Current configuration:")
-                    println("Provider: ${currentConfig.provider}")
-                    println("Model: ${currentConfig.model}")
-                    println("API URL: ${currentConfig.url}")
-                }
-                "3" -> {
-                    currentConfig = changeModelOnly(currentConfig)
-                    saveConfigUsingOkio(currentConfig, configFilePath)
-                }
-                "4" -> shouldContinue = false
-            }
         }
     }
 }
 
-suspend fun startChatSession(config: Config) {
+suspend fun runChatSession(config: Config): Boolean {
+    return startChatSession(config)
+}
+
+suspend fun startChatSession(config: Config): Boolean {
     val client = createPlatformHttpClient()
     val conversation = mutableListOf<Message>()
     
