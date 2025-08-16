@@ -77,8 +77,6 @@ The application supports two distinct API providers through a unified interface:
 ### HTTP Client Setup
 Uses Ktor client with platform-specific engines:
 - Darwin engine on macOS with content negotiation
-- WinHttp engine on Windows
-- CIO engine on Linux and as fallback
 - Lenient JSON parsing with unknown key tolerance
 - Provider-specific authentication headers:
   - Anthropic: `x-api-key` + `anthropic-version`
@@ -111,8 +109,6 @@ For OpenRouter configurations, the application provides:
   - `ktor-client-content-negotiation`: JSON content handling
   - `ktor-serialization-kotlinx-json`: Kotlinx serialization integration
   - `ktor-client-darwin`: macOS/iOS native engine
-  - `ktor-client-winhttp`: Windows native engine
-  - `ktor-client-cio`: Linux/cross-platform engine
 - `okio`: Cross-platform file system operations
 
 ## Development Notes
