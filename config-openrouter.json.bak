@@ -1,1 +1,0 @@
-{"provider":"openrouter","apiKey":"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","model":"google/gemini-2.0-flash-exp:free","url":"https://openrouter.ai/api/v1/chat/completions","appName":"Kotlin Chat Test","siteUrl":"https://test.com"}
