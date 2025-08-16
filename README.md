@@ -41,10 +41,10 @@ Esta aplicación de chat desarrollada en Kotlin Native permite interactuar con m
 - **Documentación completa** (CLAUDE.md)
 
 ### Estado Actual por Plataforma
-- ✅ **macOS**: Funcional con detección automática y motor Darwin
-- ✅ **Windows**: Detección automática configurada con motor WinHttp  
-- ✅ **Linux**: Detección automática configurada con motor CIO
-- ✅ **Multiplataforma**: **Versión única que funciona en todas las plataformas**
+- ✅ **macOS** (Intel/ARM): Funcional con detección automática y motor Darwin optimizado
+- ✅ **Windows** (x64): Compatible con detección automática y motor WinHttp nativo
+- ✅ **Linux** (x64/ARM64): Compatible con detección automática y motor CIO multiplataforma
+- ✅ **Compilación Universal**: **Una sola codebase que se adapta automáticamente a cada OS**
 
 ## 📦 Instalación
 
@@ -69,11 +69,18 @@ cd KotlinNativeClaudeChat
 - **Manejo de errores mejorado**: Detección y procesamiento de errores de API
 - **Documentación completa**: Archivo CLAUDE.md con guías detalladas
 
-### Nueva Funcionalidad Multiplataforma  
-- **Detección automática de plataforma**: `@OptIn(ExperimentalNativeApi::class)`
-- **Selección inteligente de motores HTTP**: Darwin/WinHttp/CIO según OS
-- **Build system optimizado**: Dependencias específicas por plataforma
-- **Versión única universal**: Funciona en macOS, Windows y Linux
+### Arquitectura Multiplataforma  
+- **🔍 Detección automática de plataforma**: Uso de `kotlin.native.Platform.osFamily` para identificar el OS en tiempo de ejecución
+- **🌐 Selección inteligente de motores HTTP**: 
+  - **macOS**: Motor Darwin (optimizado para macOS/iOS)
+  - **Windows**: Motor WinHttp (API nativa de Windows)
+  - **Linux**: Motor CIO (multiplataforma compatible con JVM/Native)
+- **🏗️ Build system optimizado**: Gradle configura automáticamente dependencias específicas por target
+- **📦 Binarios nativos**: Cada plataforma genera su binario optimizado:
+  - `macosArm64("native")` / `macosX64("native")` para Mac
+  - `mingwX64("native")` para Windows 
+  - `linuxX64("native")` / `linuxArm64("native")` para Linux
+- **🔧 Una codebase universal**: El mismo código fuente funciona en todas las plataformas
 
 ## 💡 Uso
 
@@ -83,9 +90,29 @@ cd KotlinNativeClaudeChat
 2. **Configuración inteligente**: Carga `config.json` si existe, sino solicita datos al usuario
 3. **Chat universal**: Funciona idénticamente en macOS, Windows y Linux
 
-### Para Windows
+### Compilación por Plataforma
+
+**macOS (desarrollo/pruebas):**
 ```bash
 ./gradlew runDebugExecutableNative
+```
+
+**Windows (desde Windows o cross-compile):**
+```bash
+# En Windows con Git Bash/PowerShell
+./gradlew.bat runDebugExecutableNative
+
+# Cross-compile desde macOS/Linux (experimental)
+./gradlew linkDebugExecutableNative
+```
+
+**Linux (desde Linux o cross-compile):**
+```bash
+# En Linux
+./gradlew runDebugExecutableNative
+
+# Cross-compile desde macOS (experimental)  
+./gradlew linkDebugExecutableNative
 ```
 
 ## 💬 Uso
@@ -399,12 +426,14 @@ src/nativeMain/kotlin/
 
 ## 🛠️ Comandos de Desarrollo
 
-### Para macOS
+### Comandos por Plataforma
+
+**macOS:**
 ```bash
 # Compilar solamente
 ./gradlew compileKotlinNative
 
-# Construir todo
+# Construir todo (debug + release)
 ./gradlew build
 
 # Ejecutar en modo debug
@@ -417,7 +446,43 @@ src/nativeMain/kotlin/
 ./gradlew clean
 
 # Ejecutar tests
-./gradlew test
+./gradlew allTests
+```
+
+**Windows:**
+```bash
+# PowerShell/CMD
+./gradlew.bat compileKotlinNative
+./gradlew.bat build
+./gradlew.bat runDebugExecutableNative
+
+# Git Bash (usa sintaxis Unix)
+./gradlew compileKotlinNative
+./gradlew build
+./gradlew runDebugExecutableNative
+```
+
+**Linux:**
+```bash
+# Mismo que macOS
+./gradlew compileKotlinNative
+./gradlew build
+./gradlew runDebugExecutableNative
+./gradlew runReleaseExecutableNative
+```
+
+### Binarios Generados
+
+Los binarios se generan en ubicaciones específicas por plataforma:
+
+```
+build/bin/native/
+├── debugExecutable/
+│   └── KotlinNativeClaudeChat.kexe     # macOS/Linux
+│   └── KotlinNativeClaudeChat.exe      # Windows
+└── releaseExecutable/
+    └── KotlinNativeClaudeChat.kexe     # macOS/Linux  
+    └── KotlinNativeClaudeChat.exe      # Windows
 ```
 
 ## 🔧 Solución de Problemas
@@ -539,6 +604,14 @@ Press Enter to execute this action
 - [x] **Soporte completo para modelos con reasoning**: GPT-oss-20b con capacidades de razonamiento visible
 
 ## 🔄 Actualizaciones Recientes
+
+### v1.6.0 (Enero 2025) - 🌐 Soporte Multiplataforma Universal
+- ✅ **Compatibilidad completa Windows/Linux**: Detección automática de plataforma en tiempo de ejecución
+- ✅ **Motores HTTP específicos**: Darwin (macOS), WinHttp (Windows), CIO (Linux) seleccionados automáticamente
+- ✅ **Build system optimizado**: Gradle configura dependencias por target automáticamente  
+- ✅ **Binarios nativos**: Generación optimizada para cada plataforma (`.kexe`/`.exe`)
+- ✅ **Una codebase universal**: El mismo código fuente se adapta a cualquier OS sin modificaciones
+- ✅ **Cross-compilation ready**: Preparado para compilación cruzada entre plataformas
 
 ### v1.5.0 (Enero 2025) - 🎯 Navegación y Chat Mejorados
 - ✅ **Sistema de navegación interactiva**: Navegación completa con flechas ↑/↓/←/→

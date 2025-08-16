@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Kotlin Native application that implements a multi-provider command-line chat client supporting both Anthropic Claude and OpenRouter APIs. The application provides access to 400+ AI models through a unified interface, featuring real-time model browsing, dynamic configuration management, and cross-platform compatibility for macOS, Linux, and Windows.
+This is a Kotlin Native application that implements a multi-provider command-line chat client supporting both Anthropic Claude and OpenRouter APIs. The application provides access to 400+ AI models through a unified interface, featuring real-time model browsing, dynamic configuration management, and **universal cross-platform compatibility** for macOS, Linux, and Windows with automatic platform detection and optimized native engines.
 
 ## Key Components
 
@@ -12,16 +12,18 @@ This is a Kotlin Native application that implements a multi-provider command-lin
   - Multi-provider API support (Anthropic & OpenRouter)
   - Interactive model browser with real-time API integration
   - Dynamic configuration system with startup menu
-  - Cross-platform HTTP client setup
+  - **Universal cross-platform HTTP client setup** with automatic platform detection
   - Conversation loop with memory management
+  - Platform detection and engine selection system
 - **Config system**: Uses `config.json` for API configuration supporting both providers
 - **Cross-platform targeting**: Automatically selects appropriate native target based on host OS/architecture
+- **Platform detection**: Runtime OS detection using `kotlin.native.Platform.osFamily` with `@OptIn(ExperimentalNativeApi::class)`
 
 ## Development Commands
 
 ### Build and Run
 ```bash
-# Build the project
+# Build the project (universal for current platform)
 ./gradlew build
 
 # Run the application (debug mode - recommended for development)
@@ -30,8 +32,8 @@ This is a Kotlin Native application that implements a multi-provider command-lin
 # Run the application (release mode - optimized)
 ./gradlew runReleaseExecutableNative
 
-# Run tests (minimal test structure exists)
-./gradlew test
+# Run tests
+./gradlew allTests
 
 # Clean build artifacts
 ./gradlew clean
@@ -40,14 +42,31 @@ This is a Kotlin Native application that implements a multi-provider command-lin
 ./gradlew compileKotlinNative
 
 # Link native binaries
-./gradlew linkNative
+./gradlew linkDebugExecutableNative
+./gradlew linkReleaseExecutableNative
 ```
 
 ### Platform-specific builds
 The build system automatically detects the host platform and configures the appropriate native target:
-- macOS (ARM64/x64) - Uses Darwin engine
-- Linux (ARM64/x64) 
-- Windows (mingwX64)
+- **macOS (ARM64/x64)**: Uses Darwin engine (optimized for macOS/iOS networking)
+- **Linux (ARM64/x64)**: Uses CIO engine (cross-platform compatibility)
+- **Windows (mingwX64)**: Uses WinHttp engine (native Windows HTTP API)
+
+#### Platform-specific Commands
+**macOS/Linux:**
+```bash
+./gradlew runDebugExecutableNative
+```
+
+**Windows (PowerShell/CMD):**
+```bash
+./gradlew.bat runDebugExecutableNative
+```
+
+**Windows (Git Bash):**
+```bash
+./gradlew runDebugExecutableNative
+```
 
 ## Architecture Notes
 
@@ -74,13 +93,38 @@ The application supports two distinct API providers through a unified interface:
 - `ContentBlock`: Text content blocks for Anthropic responses
 - `Usage` / `OpenRouterUsage`: Token usage tracking with provider-specific details
 
-### HTTP Client Setup
-Uses Ktor client with platform-specific engines:
-- Darwin engine on macOS with content negotiation
+### Cross-Platform HTTP Client Setup
+The application implements a sophisticated platform detection and HTTP engine selection system:
+
+#### Platform Detection System
+```kotlin
+enum class Platform { MACOS, WINDOWS, LINUX, UNKNOWN }
+
+@OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+fun detectPlatform(): Platform {
+    val osName = kotlin.native.Platform.osFamily.name.lowercase()
+    return when {
+        osName.contains("macos") || osName.contains("osx") -> Platform.MACOS
+        osName.contains("windows") || osName.contains("mingw") -> Platform.WINDOWS
+        osName.contains("linux") -> Platform.LINUX
+        else -> Platform.UNKNOWN
+    }
+}
+```
+
+#### HTTP Engine Selection
+Uses Ktor client with platform-specific engines selected automatically at runtime:
+- **Darwin engine** on macOS (CFNetwork/NSURLSession based)
+- **WinHttp engine** on Windows (native Windows HTTP API)
+- **CIO engine** on Linux (coroutine-based I/O, JVM compatible)
+
+#### Client Configuration
 - Lenient JSON parsing with unknown key tolerance
 - Provider-specific authentication headers:
   - Anthropic: `x-api-key` + `anthropic-version`
   - OpenRouter: `Authorization` Bearer token + optional tracking headers
+- Content negotiation for JSON serialization
+- Automatic engine fallback in case of issues
 
 ### Configuration Management
 Advanced configuration system with interactive startup menu:
@@ -103,13 +147,37 @@ For OpenRouter configurations, the application provides:
 
 ## Dependencies
 
+### Core Dependencies
 - `kotlinx-serialization-json`: JSON serialization for API communication
-- `ktor-client-*`: HTTP client with content negotiation
-  - `ktor-client-core`: Core HTTP functionality
-  - `ktor-client-content-negotiation`: JSON content handling
-  - `ktor-serialization-kotlinx-json`: Kotlinx serialization integration
-  - `ktor-client-darwin`: macOS/iOS native engine
+- `ktor-client-core`: Core HTTP functionality
+- `ktor-client-content-negotiation`: JSON content handling
+- `ktor-serialization-kotlinx-json`: Kotlinx serialization integration
 - `okio`: Cross-platform file system operations
+
+### Platform-Specific HTTP Engines
+The build system automatically includes the appropriate engine based on the target platform:
+
+**macOS (via `build.gradle.kts`):**
+- `ktor-client-darwin`: macOS/iOS native engine (CFNetwork based)
+
+**Windows (via `build.gradle.kts`):**
+- `ktor-client-winhttp`: Windows native HTTP engine (WinHttp API)
+
+**Linux (via `build.gradle.kts`):**
+- `ktor-client-cio`: Coroutine-based I/O engine (cross-platform)
+
+### Engine Selection Logic
+The application automatically selects the appropriate engine at runtime:
+```kotlin
+fun createPlatformHttpClient(): HttpClient {
+    return when (detectPlatform()) {
+        Platform.MACOS -> HttpClient { /* Darwin engine via dependencies */ }
+        Platform.WINDOWS -> HttpClient { /* WinHttp engine via dependencies */ }
+        Platform.LINUX -> HttpClient { /* CIO engine via dependencies */ }
+        Platform.UNKNOWN -> HttpClient { /* CIO fallback */ }
+    }
+}
+```
 
 ## Development Notes
 
@@ -129,6 +197,18 @@ The application includes comprehensive error handling for:
 - Provider-specific error responses with actionable suggestions
 
 ### Performance Considerations
+- **Platform-optimized HTTP engines**: Each platform uses its most efficient native HTTP implementation
 - Real-time model fetching is optimized with caching
 - HTTP client reuse for multiple API calls during model browsing
 - Efficient JSON parsing with unknown key tolerance
+- **Native binary optimization**: Each platform generates optimized binaries:
+  - macOS: `.kexe` files optimized for Darwin/ARM64/x64
+  - Windows: `.exe` files optimized for Windows x64
+  - Linux: `.kexe` files optimized for Linux x64/ARM64
+
+### Cross-Platform Compatibility Notes
+- **Universal codebase**: Single source code that adapts to all platforms
+- **Runtime platform detection**: Uses Kotlin Native's experimental API for OS detection
+- **Build-time optimization**: Gradle configures platform-specific dependencies automatically
+- **Engine fallbacks**: CIO engine as universal fallback for unknown platforms
+- **Testing**: Application should be tested on each target platform for optimal behavior
