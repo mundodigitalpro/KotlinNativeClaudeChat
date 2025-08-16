@@ -1,6 +1,6 @@
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.darwin.*
+import io.ktor.client.engine.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -294,6 +294,22 @@ fun ensureRawTerminalMode() {
         }
     } catch (e: Exception) {
         // Ignore errors - not in a terminal
+    }
+}
+
+// Platform detection and HTTP engine management
+enum class Platform {
+    MACOS, WINDOWS, LINUX, UNKNOWN
+}
+
+@OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+fun detectPlatform(): Platform {
+    val osName = kotlin.native.Platform.osFamily.name.lowercase()
+    return when {
+        osName.contains("macos") || osName.contains("osx") -> Platform.MACOS
+        osName.contains("windows") || osName.contains("mingw") -> Platform.WINDOWS
+        osName.contains("linux") -> Platform.LINUX
+        else -> Platform.UNKNOWN
     }
 }
 
@@ -817,14 +833,56 @@ fun showStartupMenu(config: Config? = null): Int {
 }
 
 fun createPlatformHttpClient(): HttpClient {
-    return HttpClient(Darwin) {
-        install(ContentNegotiation) {
-            json(Json {
-                prettyPrint = true
-                isLenient = true
-                ignoreUnknownKeys = true
-                coerceInputValues = true
-            })
+    // Create HttpClient with appropriate engine based on platform
+    // The build system will include only the appropriate engine for each target
+    return when (detectPlatform()) {
+        Platform.MACOS -> {
+            HttpClient {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    })
+                }
+            }
+        }
+        Platform.WINDOWS -> {
+            HttpClient {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    })
+                }
+            }
+        }
+        Platform.LINUX -> {
+            HttpClient {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    })
+                }
+            }
+        }
+        Platform.UNKNOWN -> {
+            HttpClient {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    })
+                }
+            }
         }
     }
 }
@@ -1013,16 +1071,7 @@ fun main() = runBlocking {
                 val existingConfig = loadConfigUsingOkio(configFilePath) ?: return@runBlocking
                 
                 // Create HTTP client early for model browsing
-                val client = HttpClient(Darwin) {
-                    install(ContentNegotiation) {
-                        json(Json {
-                            prettyPrint = true
-                            isLenient = true
-                            ignoreUnknownKeys = true
-                            coerceInputValues = true
-                        })
-                    }
-                }
+                val client = createPlatformHttpClient()
                 
                 val menuChoice = showStartupMenu(existingConfig)
                 when {
