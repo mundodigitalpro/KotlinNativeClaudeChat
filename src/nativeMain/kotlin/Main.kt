@@ -1,13 +1,21 @@
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.core.*
+import kotlin.time.TimeSource
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import okio.*
 import okio.Path.Companion.toPath
 import platform.posix.*
@@ -318,7 +326,11 @@ enum class ChatCommand {
     CONTINUE,     // Continue chatting normally
     BACK_TO_MENU, // Go back to main menu
     EXIT_APP,     // Exit the application
-    HELP          // Show chat commands
+    HELP,         // Show chat commands
+    CLEAR,        // Clear conversation history
+    CONFIG,       // Show current configuration
+    SAVE,         // Save conversation history to a file
+    LOAD          // Load conversation history from a file
 }
 
 data class ChatInput(
@@ -337,6 +349,10 @@ fun parseChatInput(input: String): ChatInput {
         trimmedInput.equals("/quit", ignoreCase = true) -> ChatInput(ChatCommand.EXIT_APP)
         trimmedInput.equals("/help", ignoreCase = true) -> ChatInput(ChatCommand.HELP)
         trimmedInput.equals("?", ignoreCase = true) -> ChatInput(ChatCommand.HELP)
+        trimmedInput.equals("/clear", ignoreCase = true) -> ChatInput(ChatCommand.CLEAR)
+        trimmedInput.equals("/config", ignoreCase = true) -> ChatInput(ChatCommand.CONFIG)
+        trimmedInput.equals("/save", ignoreCase = true) -> ChatInput(ChatCommand.SAVE)
+        trimmedInput.equals("/load", ignoreCase = true) -> ChatInput(ChatCommand.LOAD)
         else -> ChatInput(ChatCommand.CONTINUE, trimmedInput)
     }
 }
@@ -347,6 +363,10 @@ fun showChatHelp() {
     println("  ${NavigationController.ANSI_GREEN}/menu${NavigationController.ANSI_RESET} or ${NavigationController.ANSI_GREEN}/back${NavigationController.ANSI_RESET}  - Return to main menu")
     println("  ${NavigationController.ANSI_GREEN}/exit${NavigationController.ANSI_RESET} or ${NavigationController.ANSI_GREEN}/quit${NavigationController.ANSI_RESET}  - Exit application")
     println("  ${NavigationController.ANSI_GREEN}/help${NavigationController.ANSI_RESET} or ${NavigationController.ANSI_GREEN}?${NavigationController.ANSI_RESET}      - Show this help")
+    println("  ${NavigationController.ANSI_GREEN}/clear${NavigationController.ANSI_RESET}     - Clear conversation history")
+    println("  ${NavigationController.ANSI_GREEN}/config${NavigationController.ANSI_RESET}    - Show current configuration")
+    println("  ${NavigationController.ANSI_GREEN}/save${NavigationController.ANSI_RESET}      - Save conversation history to a file")
+    println("  ${NavigationController.ANSI_GREEN}/load${NavigationController.ANSI_RESET}      - Load conversation history from a file")
     println("  ${NavigationController.ANSI_GREEN}[Enter]${NavigationController.ANSI_RESET}       - Return to main menu (empty message)")
     println("  ${NavigationController.ANSI_YELLOW}Type any message to chat with the AI model${NavigationController.ANSI_RESET}")
     println("${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}\n")
@@ -385,13 +405,13 @@ fun requestAnthropicConfig(): Config {
     ensureNormalTerminalMode()
     
     print("Enter Anthropic API version (e.g., 2023-06-01): ")
-    val version = readlnOrNull() ?: "2023-06-01"
+    val version = readlnOrNull()?.takeIf { it.isNotBlank() } ?: "2023-06-01"
     
     print("Enter your Anthropic API key: ")
-    val apiKey = readlnOrNull() ?: ""
+    val apiKey = readlnOrNull()?.takeIf { it.isNotBlank() } ?: ""
     
     print("Enter model name (e.g., claude-3-5-haiku-20241022): ")
-    val model = readlnOrNull() ?: "claude-3-5-haiku-20241022"
+    val model = readlnOrNull()?.takeIf { it.isNotBlank() } ?: "claude-3-5-haiku-20241022"
     
     val url = "https://api.anthropic.com/v1/messages"
     
@@ -403,7 +423,7 @@ fun requestOpenRouterConfig(): Config {
     ensureNormalTerminalMode()
     
     print("Enter your OpenRouter API key: ")
-    val apiKey = readlnOrNull() ?: ""
+    val apiKey = readlnOrNull()?.takeIf { it.isNotBlank() } ?: ""
     
     println("\nPopular OpenRouter models:")
     println("- openai/gpt-4o")
@@ -414,7 +434,7 @@ fun requestOpenRouterConfig(): Config {
     println("- qwen/qwen3-coder:free")
     println("- z-ai/glm-4.5-air:free")
     print("Enter model name: ")
-    val model = readlnOrNull() ?: "openai/gpt-4o"
+    val model = readlnOrNull()?.takeIf { it.isNotBlank() } ?: "openai/gpt-4o"
     
     print("Enter your app/site name (optional): ")
     val appName = readlnOrNull()?.takeIf { it.isNotBlank() }
@@ -652,7 +672,10 @@ data class Config(
     val model: String,
     val url: String,
     val appName: String? = null,
-    val siteUrl: String? = null
+    val siteUrl: String? = null,
+    var useStreaming: Boolean = false,
+    var autosave: Boolean = false,
+    var persona: String? = null
 )
 
 @Serializable
@@ -673,10 +696,10 @@ data class Message(
 )
 
 @Serializable
-data class AnthropicRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int)
+data class AnthropicRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int, val stream: Boolean = false)
 
 @Serializable
-data class OpenRouterRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int)
+data class OpenRouterRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int, val stream: Boolean = false)
 
 // ANTHROPIC API STRUCTURES
 @Serializable
@@ -790,108 +813,106 @@ data class ErrorResponse(
     val error: ApiError
 )
 
+// ANTHROPIC STREAMING API STRUCTURES
+@Serializable
+data class AnthropicStreamResponse(
+    val type: String,
+    val index: Int? = null,
+    val content_block: ContentBlock? = null, // For content_block_delta
+    val delta: ContentDelta? = null // For message_delta
+)
+
+@Serializable
+data class ContentDelta(
+    val type: String, // "text_delta"
+    val text: String
+)
+
+// OPENROUTER STREAMING API STRUCTURES
+@Serializable
+data class OpenRouterStreamChoice(
+    val index: Int,
+    val delta: Message,
+    val finish_reason: String? = null
+)
+
+@Serializable
+data class OpenRouterStreamResponse(
+    val id: String,
+    val model: String,
+    val choices: List<OpenRouterStreamChoice>
+)
+
 // Enhanced menu functions using NavigationController
-fun showEnhancedStartupMenu(config: Config? = null): Int {
-    var selectedChoice = 1
-    
+fun showEnhancedStartupMenu(config: Config? = null): Pair<Int, Boolean> {
+    var selectedChoice = if (config == null) 2 else 1
+    var useStreaming = false
+
     val menuItems = config?.let {
         val baseItems = mutableListOf(
-            MenuItem("use_existing", "Use existing configuration", action = { selectedChoice = 1 }),
+            MenuItem("use_existing", "Use existing configuration (Normal Chat)", action = { selectedChoice = 1; useStreaming = false }),
+            MenuItem("use_existing_streaming", "Use existing configuration (Streaming Chat)", action = { selectedChoice = 1; useStreaming = true }),
             MenuItem("configure_new", "Configure new API", action = { selectedChoice = 2 }),
             MenuItem("change_model", "Change model only (keep same API key)", action = { selectedChoice = 3 })
         )
-        
+
         if (it.provider == "openrouter") {
             baseItems.add(MenuItem("browse_models", "Browse all OpenRouter models (free/paid)", action = { selectedChoice = 4 }))
             baseItems.add(MenuItem("reconfigure", "Reconfigure existing setup", action = { selectedChoice = 5 }))
         } else {
             baseItems.add(MenuItem("reconfigure", "Reconfigure existing setup", action = { selectedChoice = 4 }))
         }
-        
+        baseItems.add(MenuItem("select_model", "Select model from list", action = { selectedChoice = 7 }))
+        baseItems.add(MenuItem("change_provider", "Change provider", action = { selectedChoice = 8 }))
+        baseItems.add(MenuItem("autosave", "Toggle autosave on exit", action = { selectedChoice = 9 }))
+        baseItems.add(MenuItem("persona", "Customize assistant persona", action = { selectedChoice = 10 }))
+        baseItems.add(MenuItem("exit", "Exit", action = { selectedChoice = 6 }))
+
         baseItems
     } ?: listOf(
-        MenuItem("use_existing", "Use existing configuration", action = { selectedChoice = 1 }),
-        MenuItem("configure_new", "Configure new API", action = { selectedChoice = 2 }),
-        MenuItem("reconfigure", "Reconfigure existing setup", action = { selectedChoice = 3 })
+        MenuItem("configure_new", "Configure new API", action = { selectedChoice = 2; useStreaming = false }),
+        MenuItem("reconfigure", "Reconfigure existing setup", action = { selectedChoice = 3; useStreaming = false }),
+        MenuItem("exit", "Exit", action = { selectedChoice = 4; useStreaming = false })
     )
-    
+
     val controller = NavigationController()
     val title = if (config != null) {
         "Main Menu - Current: ${config.provider.uppercase()} API with model ${config.model}"
     } else {
         "Main Menu - No Configuration Found"
     }
-    
+
     controller.navigate(menuItems, title)
-    
-    return selectedChoice
+
+    return Pair(selectedChoice, useStreaming)
 }
 
 // Legacy function for compatibility - now uses enhanced navigation
-fun showStartupMenu(config: Config? = null): Int {
+fun showStartupMenu(config: Config? = null): Pair<Int, Boolean> {
     return showEnhancedStartupMenu(config)
 }
 
 fun createPlatformHttpClient(): HttpClient {
     // Create HttpClient with appropriate engine based on platform
     // The build system will include only the appropriate engine for each target
-    return when (detectPlatform()) {
-        Platform.MACOS -> {
-            HttpClient {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        coerceInputValues = true
-                    })
-                }
-            }
+    return HttpClient {
+        install(ContentNegotiation) {
+            json(Json {
+                prettyPrint = true
+                isLenient = true
+                ignoreUnknownKeys = true
+                coerceInputValues = true
+            })
         }
-        Platform.WINDOWS -> {
-            HttpClient {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        coerceInputValues = true
-                    })
-                }
-            }
-        }
-        Platform.LINUX -> {
-            HttpClient {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        coerceInputValues = true
-                    })
-                }
-            }
-        }
-        Platform.UNKNOWN -> {
-            HttpClient {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        coerceInputValues = true
-                    })
-                }
-            }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 300000 // 5 minutes
+            connectTimeoutMillis = 60000 // 1 minute
+            socketTimeoutMillis = 300000 // 5 minutes
         }
     }
 }
 
 suspend fun runChatSession(config: Config): Boolean {
-    return startChatSession(config)
-}
-
-suspend fun startChatSession(config: Config): Boolean {
     val client = createPlatformHttpClient()
     val conversation = mutableListOf<Message>()
     
@@ -900,9 +921,7 @@ suspend fun startChatSession(config: Config): Boolean {
     println("${NavigationController.ANSI_BLUE}Model: ${NavigationController.ANSI_YELLOW}${config.model}${NavigationController.ANSI_RESET}")
     println("${NavigationController.ANSI_CYAN}Type /help or ? for chat commands${NavigationController.ANSI_RESET}\n")
     
-    var shouldReturnToMenu = false
-
-    while (!shouldReturnToMenu) {
+    while (true) {
         print("${NavigationController.ANSI_BOLD}You:${NavigationController.ANSI_RESET} ")
         val rawInput = readlnOrNull() ?: break
         val chatInput = parseChatInput(rawInput)
@@ -910,10 +929,13 @@ suspend fun startChatSession(config: Config): Boolean {
         when (chatInput.command) {
             ChatCommand.BACK_TO_MENU -> {
                 println("${NavigationController.ANSI_GREEN}📋 Returning to main menu...${NavigationController.ANSI_RESET}")
-                shouldReturnToMenu = true
-                break
+                return true
             }
+
             ChatCommand.EXIT_APP -> {
+                if (config.autosave) {
+                    saveConversationHistory(conversation)
+                }
                 println("${NavigationController.ANSI_YELLOW}👋 Goodbye!${NavigationController.ANSI_RESET}")
                 client.close()
                 return false // Signal to exit the application
@@ -921,6 +943,28 @@ suspend fun startChatSession(config: Config): Boolean {
             ChatCommand.HELP -> {
                 showChatHelp()
                 continue // Don't add help command to conversation
+            }
+            ChatCommand.CLEAR -> {
+                conversation.clear()
+                println("📜 Conversation history cleared.")
+                continue
+            }
+            ChatCommand.CONFIG -> {
+                showCurrentConfig(config)
+                continue
+            }
+            ChatCommand.SAVE -> {
+                saveConversationHistory(conversation)
+                continue
+            }
+            ChatCommand.LOAD -> {
+                val loadedConversation = loadConversationHistory()
+                if (loadedConversation != null) {
+                    conversation.clear()
+                    conversation.addAll(loadedConversation)
+                    println("📜 Conversation history loaded.")
+                }
+                continue
             }
             ChatCommand.CONTINUE -> {
                 // Process the actual chat message
@@ -1053,6 +1097,194 @@ suspend fun startChatSession(config: Config): Boolean {
     return true // Signal to return to menu
 }
 
+suspend fun runStreamingChatSession(config: Config): Boolean {
+    val client = createPlatformHttpClient()
+    val conversation = mutableListOf<Message>()
+
+    println("\n${NavigationController.ANSI_BOLD}${NavigationController.ANSI_GREEN}💬 Streaming Chat Session Started${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_BLUE}Model: ${NavigationController.ANSI_YELLOW}${config.model}${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_CYAN}Type /help or ? for chat commands${NavigationController.ANSI_RESET}\n")
+
+    while (true) {
+        print("${NavigationController.ANSI_BOLD}You:${NavigationController.ANSI_RESET} ")
+        val rawInput = readlnOrNull() ?: break
+        val chatInput = parseChatInput(rawInput)
+
+        when (chatInput.command) {
+            ChatCommand.BACK_TO_MENU -> {
+                println("${NavigationController.ANSI_GREEN}📋 Returning to main menu...${NavigationController.ANSI_RESET}")
+                return true
+            }
+
+            ChatCommand.EXIT_APP -> {
+                if (config.autosave) {
+                    saveConversationHistory(conversation)
+                }
+                println("${NavigationController.ANSI_YELLOW}👋 Goodbye!${NavigationController.ANSI_RESET}")
+                client.close()
+                return false // Signal to exit the application
+            }
+            ChatCommand.HELP -> {
+                showChatHelp()
+                continue
+            }
+            ChatCommand.CLEAR -> {
+                conversation.clear()
+                println("📜 Conversation history cleared.")
+                continue
+            }
+            ChatCommand.CONFIG -> {
+                showCurrentConfig(config)
+                continue
+            }
+            ChatCommand.SAVE -> {
+                saveConversationHistory(conversation)
+                continue
+            }
+            ChatCommand.LOAD -> {
+                val loadedConversation = loadConversationHistory()
+                if (loadedConversation != null) {
+                    conversation.clear()
+                    conversation.addAll(loadedConversation)
+                    println("📜 Conversation history loaded.")
+                }
+                continue
+            }
+            ChatCommand.CONTINUE -> {
+                val userMessage = chatInput.message ?: continue
+                conversation.add(Message("user", userMessage))
+
+                try {
+                    val requestBuilder = HttpRequestBuilder()
+                    requestBuilder.url(config.url)
+                    requestBuilder.method = HttpMethod.Post
+                    
+                    val requestBody: Any = when (config.provider) {
+                        "anthropic" -> {
+                            requestBuilder.header("x-api-key", config.apiKey)
+                            requestBuilder.header("anthropic-version", config.anthropicVersion ?: "2023-06-01")
+                            AnthropicRequestBody(config.model, conversation, 1024, stream = true)
+                        }
+                        "openrouter" -> {
+                            requestBuilder.header("Authorization", "Bearer ${config.apiKey}")
+                            config.siteUrl?.let { requestBuilder.header("HTTP-Referer", it) }
+                            config.appName?.let { requestBuilder.header("X-Title", it) }
+                            OpenRouterRequestBody(config.model, conversation, 1024, stream = true)
+                        }
+                        else -> throw IllegalArgumentException("Unknown provider: ${config.provider}")
+                    }
+                    
+                    requestBuilder.contentType(ContentType.Application.Json)
+                    requestBuilder.setBody(requestBody)
+
+                    val httpResponse = client.preparePost(requestBuilder).execute()
+                    val channel: ByteReadChannel = httpResponse.body()
+
+                    print("${NavigationController.ANSI_BOLD}Assistant:${NavigationController.ANSI_RESET} ")
+                    var fullResponse = ""
+
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readUTF8Line() ?: continue
+                        if (line.isBlank()) continue
+
+                        val eventData = line.removePrefix("data: ").trim()
+                        if (eventData == "[DONE]") break
+
+                        try {
+                            val assistantResponse = when (config.provider) {
+                                "anthropic" -> {
+                                    val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
+                                    streamResponse.delta?.text ?: ""
+                                }
+                                "openrouter" -> {
+                                    val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
+                                    streamResponse.choices.firstOrNull()?.delta?.content ?: ""
+                                }
+                                else -> ""
+                            }
+                            
+                            print(assistantResponse)
+                            fullResponse += assistantResponse
+
+                        } catch (e: Exception) {
+                            // Ignore JSON parsing errors for non-data lines
+                        }
+                    }
+                    println() // Newline after streaming is complete
+                    conversation.add(Message("assistant", fullResponse))
+
+                } catch (e: Exception) {
+                    println("❌ Error in the request: ${e.message}")
+                    println("💡 Type /menu to return to the main menu or /help for commands.")
+                }
+            }
+        }
+    }
+
+    client.close()
+    return true // Signal to return to menu
+}
+
+
+
+
+fun validateConfig(config: Config): Boolean {
+    if (config.apiKey.isBlank()) {
+        println("❌ API key is missing.")
+        return false
+    }
+    if (config.model.isBlank()) {
+        println("❌ Model is not selected.")
+        return false
+    }
+    return true
+}
+
+fun loadConversationHistory(): List<Message>? {
+    println("Enter the path to the conversation history file:")
+    val filePath = readlnOrNull()?.toPath()
+    if (filePath == null) {
+        println("❌ Invalid file path.")
+        return null
+    }
+    return try {
+        val fileSystem = FileSystem.SYSTEM
+        val jsonContent = fileSystem.read(filePath) {
+            readUtf8()
+        }
+        Json.decodeFromString(ListSerializer(Message.serializer()), jsonContent)
+    } catch (e: Exception) {
+        println("❌ Error loading conversation history: ${e.message}")
+        null
+    }
+}
+
+fun saveConversationHistory(conversation: List<Message>) {
+    val timestamp = TimeSource.Monotonic.markNow().elapsedNow().inWholeMilliseconds
+    val fileName = "conversation_history_$timestamp.json".toPath()
+    try {
+        val fileSystem = FileSystem.SYSTEM
+        val jsonContent = Json.encodeToString(ListSerializer(Message.serializer()), conversation)
+        fileSystem.write(fileName) {
+            writeUtf8(jsonContent)
+        }
+        println("💾 Conversation history saved to $fileName")
+    } catch (e: Exception) {
+        println("❌ Error saving conversation history: ${e.message}")
+    }
+}
+
+fun showCurrentConfig(config: Config) {
+    println("\n${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
+    println("${NavigationController.ANSI_BOLD}${NavigationController.ANSI_BLUE}⚙️ Current Configuration:${NavigationController.ANSI_RESET}")
+    println("  ${NavigationController.ANSI_GREEN}Provider:${NavigationController.ANSI_RESET} ${config.provider}")
+    println("  ${NavigationController.ANSI_GREEN}Model:${NavigationController.ANSI_RESET} ${config.model}")
+    config.anthropicVersion?.let { println("  ${NavigationController.ANSI_GREEN}Anthropic Version:${NavigationController.ANSI_RESET} $it") }
+    config.appName?.let { println("  ${NavigationController.ANSI_GREEN}App Name:${NavigationController.ANSI_RESET} $it") }
+    config.siteUrl?.let { println("  ${NavigationController.ANSI_GREEN}Site URL:${NavigationController.ANSI_RESET} $it") }
+    println("${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}\n")
+}
+
 fun main() = runBlocking {
     val configFilePath = "config.json".toPath()
     val fileSystem = FileSystem.SYSTEM
@@ -1060,7 +1292,8 @@ fun main() = runBlocking {
     var shouldContinue = true
     
     while (shouldContinue) {
-        val config: Config = when {
+        var useStreaming = false
+        val config: Config? = when {
             !fileSystem.exists(configFilePath) -> {
                 println("No configuration found. Setting up new API...")
                 val newConfig = requestConfigInput()
@@ -1073,31 +1306,66 @@ fun main() = runBlocking {
                 // Create HTTP client early for model browsing
                 val client = createPlatformHttpClient()
                 
-                val menuChoice = showStartupMenu(existingConfig)
-                when {
-                    menuChoice == 2 -> {
+                val (menuChoice, streaming) = showStartupMenu(existingConfig)
+                useStreaming = streaming
+                when (menuChoice) {
+                    1 -> {
+                        client.close()
+                        existingConfig
+                    }
+                    2 -> {
                         client.close()
                         val newConfig = requestConfigInput()
                         saveConfigUsingOkio(newConfig, configFilePath)
                         newConfig
                     }
-                    menuChoice == 3 -> {
+                    3 -> {
                         val updatedConfig = changeModelOnly(existingConfig)
                         client.close()
                         saveConfigUsingOkio(updatedConfig, configFilePath)
                         updatedConfig
                     }
-                    menuChoice == 4 && existingConfig.provider == "openrouter" -> {
+                    4 -> {
+                        if (existingConfig.provider == "openrouter") {
+                            val updatedConfig = selectModelFromList(existingConfig, client)
+                            client.close()
+                            saveConfigUsingOkio(updatedConfig, configFilePath)
+                            updatedConfig
+                        } else {
+                            client.close()
+                            val newConfig = requestConfigInput()
+                            saveConfigUsingOkio(newConfig, configFilePath)
+                            newConfig
+                        }
+                    }
+                    5 -> {
+                        client.close()
+                        val newConfig = requestConfigInput()
+                        saveConfigUsingOkio(newConfig, configFilePath)
+                        newConfig
+                    }
+                    6 -> {
+                        client.close()
+                        return@runBlocking
+                    }
+                    7 -> {
                         val updatedConfig = selectModelFromList(existingConfig, client)
                         client.close()
                         saveConfigUsingOkio(updatedConfig, configFilePath)
                         updatedConfig
                     }
-                    (menuChoice == 4 && existingConfig.provider != "openrouter") || menuChoice == 5 -> {
+                    8 -> {
                         client.close()
                         val newConfig = requestConfigInput()
                         saveConfigUsingOkio(newConfig, configFilePath)
                         newConfig
+                    }
+                    9 -> {
+                        existingConfig.autosave = !existingConfig.autosave
+                        saveConfigUsingOkio(existingConfig, configFilePath)
+                        println("💾 Autosave on exit is now ${if (existingConfig.autosave) "enabled" else "disabled"}.")
+                        client.close()
+                        existingConfig
                     }
                     else -> {
                         client.close()
@@ -1107,9 +1375,19 @@ fun main() = runBlocking {
             }
         }
 
+        if (config == null || !validateConfig(config)) {
+            shouldContinue = false
+            continue
+        }
+
+        config.useStreaming = useStreaming
         println("${NavigationController.ANSI_GREEN}✅ Configuration loaded: ${config.provider.uppercase()} API with model ${config.model}${NavigationController.ANSI_RESET}")
         
         // Run the chat session and check if we should continue or exit
-        shouldContinue = runChatSession(config)
+        shouldContinue = if (config.useStreaming) {
+            runStreamingChatSession(config)
+        } else {
+            runChatSession(config)
+        }
     }
 }
