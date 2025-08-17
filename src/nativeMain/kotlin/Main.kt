@@ -818,28 +818,33 @@ data class ErrorResponse(
 data class AnthropicStreamResponse(
     val type: String,
     val index: Int? = null,
-    val content_block: ContentBlock? = null, // For content_block_delta
-    val delta: ContentDelta? = null // For message_delta
+    val delta: AnthropicDelta? = null
 )
 
 @Serializable
-data class ContentDelta(
-    val type: String, // "text_delta"
-    val text: String
+data class AnthropicDelta(
+    val type: String? = null,
+    val text: String? = null
 )
 
 // OPENROUTER STREAMING API STRUCTURES
 @Serializable
+data class OpenRouterDelta(
+    val content: String? = null,
+    val role: String? = null
+)
+
+@Serializable
 data class OpenRouterStreamChoice(
     val index: Int,
-    val delta: Message,
+    val delta: OpenRouterDelta,
     val finish_reason: String? = null
 )
 
 @Serializable
 data class OpenRouterStreamResponse(
-    val id: String,
-    val model: String,
+    val id: String? = null,
+    val model: String? = null,
     val choices: List<OpenRouterStreamChoice>
 )
 
@@ -1187,31 +1192,49 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                         val line = channel.readUTF8Line() ?: continue
                         if (line.isBlank()) continue
 
-                        val eventData = line.removePrefix("data: ").trim()
-                        if (eventData == "[DONE]") break
+                        // Debug: mostrar líneas recibidas
+                        // println("[DEBUG] Received: $line")
 
-                        try {
-                            val assistantResponse = when (config.provider) {
-                                "anthropic" -> {
-                                    val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
-                                    streamResponse.delta?.text ?: ""
+                        if (line.startsWith("data: ")) {
+                            val eventData = line.removePrefix("data: ").trim()
+                            if (eventData == "[DONE]") break
+                            if (eventData.isBlank()) continue
+
+                            try {
+                                val assistantResponse = when (config.provider) {
+                                    "anthropic" -> {
+                                        val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
+                                        when (streamResponse.type) {
+                                            "content_block_delta" -> streamResponse.delta?.text ?: ""
+                                            else -> ""
+                                        }
+                                    }
+                                    "openrouter" -> {
+                                        val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
+                                        streamResponse.choices.firstOrNull()?.delta?.content ?: ""
+                                    }
+                                    else -> ""
                                 }
-                                "openrouter" -> {
-                                    val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
-                                    streamResponse.choices.firstOrNull()?.delta?.content ?: ""
+                                
+                                if (assistantResponse.isNotEmpty()) {
+                                    print(assistantResponse)
+                                    fullResponse += assistantResponse
                                 }
-                                else -> ""
+
+                            } catch (e: Exception) {
+                                // Debug: mostrar errores de parsing
+                                println("\n[DEBUG] JSON parsing error: ${e.message}")
+                                println("[DEBUG] Data: $eventData")
                             }
-                            
-                            print(assistantResponse)
-                            fullResponse += assistantResponse
-
-                        } catch (e: Exception) {
-                            // Ignore JSON parsing errors for non-data lines
                         }
                     }
                     println() // Newline after streaming is complete
-                    conversation.add(Message("assistant", fullResponse))
+                    
+                    if (fullResponse.isNotEmpty()) {
+                        conversation.add(Message("assistant", fullResponse))
+                    } else {
+                        println("⚠️ No response received from streaming API. Check your API key and model availability.")
+                    }
 
                 } catch (e: Exception) {
                     println("❌ Error in the request: ${e.message}")
