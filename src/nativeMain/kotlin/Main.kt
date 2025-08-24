@@ -844,8 +844,11 @@ data class OpenRouterStreamChoice(
 @Serializable
 data class OpenRouterStreamResponse(
     val id: String? = null,
+    val `object`: String? = null,
+    val created: Long? = null,
     val model: String? = null,
-    val choices: List<OpenRouterStreamChoice>
+    val choices: List<OpenRouterStreamChoice>,
+    val usage: OpenRouterUsage? = null
 )
 
 // Enhanced menu functions using NavigationController
@@ -1103,6 +1106,7 @@ suspend fun runChatSession(config: Config): Boolean {
 }
 
 suspend fun runStreamingChatSession(config: Config): Boolean {
+    println("[DEBUG] runStreamingChatSession started")
     val client = createPlatformHttpClient()
     val conversation = mutableListOf<Message>()
 
@@ -1157,6 +1161,7 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
             }
             ChatCommand.CONTINUE -> {
                 val userMessage = chatInput.message ?: continue
+                println("[DEBUG] Processing message: '$userMessage'")
                 conversation.add(Message("user", userMessage))
 
                 try {
@@ -1164,6 +1169,7 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                     requestBuilder.url(config.url)
                     requestBuilder.method = HttpMethod.Post
                     
+                    println("[DEBUG] About to create request body for provider: ${config.provider}")
                     val requestBody: Any = when (config.provider) {
                         "anthropic" -> {
                             requestBuilder.header("x-api-key", config.apiKey)
@@ -1182,58 +1188,121 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                     requestBuilder.contentType(ContentType.Application.Json)
                     requestBuilder.setBody(requestBody)
 
+                    println("[DEBUG] Making streaming request to: ${config.url}")
+                    println("[DEBUG] Model: ${config.model}")
+                    
                     val httpResponse = client.preparePost(requestBuilder).execute()
+                    
+                    println("[DEBUG] Response status: ${httpResponse.status.value} ${httpResponse.status.description}")
+                    
+                    if (httpResponse.status.value !in 200..299) {
+                        println("❌ HTTP Error: ${httpResponse.status.value} ${httpResponse.status.description}")
+                        val errorBody = httpResponse.body<String>()
+                        println("[DEBUG] Error body: $errorBody")
+                        if (errorBody.contains("insufficient_quota") || errorBody.contains("credits")) {
+                            println("💡 Account has insufficient credits for this model")
+                        } else if (errorBody.contains("model_not_found") || errorBody.contains("not found")) {
+                            println("💡 Model '${config.model}' not found or not available")
+                        } else if (errorBody.contains("streaming") || errorBody.contains("stream")) {
+                            println("💡 This model may not support streaming. Try normal chat mode.")
+                        }
+                        continue
+                    }
+                    
+                    println("[DEBUG] Starting to read stream...")
+                    println("[DEBUG] Content-Type: ${httpResponse.headers["Content-Type"]}")
+                    
                     val channel: ByteReadChannel = httpResponse.body()
 
                     print("${NavigationController.ANSI_BOLD}Assistant:${NavigationController.ANSI_RESET} ")
                     var fullResponse = ""
+                    var lineCount = 0
 
                     while (!channel.isClosedForRead) {
                         val line = channel.readUTF8Line() ?: continue
+                        lineCount++
                         if (line.isBlank()) continue
 
-                        // Debug: mostrar líneas recibidas
-                        // println("[DEBUG] Received: $line")
+                        // Debug: descomentar la siguiente línea para ver el stream completo
+                        println("[DEBUG] Line $lineCount: $line")
 
-                        if (line.startsWith("data: ")) {
-                            val eventData = line.removePrefix("data: ").trim()
-                            if (eventData == "[DONE]") break
-                            if (eventData.isBlank()) continue
+                        when {
+                            line.startsWith("data: ") -> {
+                                val eventData = line.removePrefix("data: ").trim()
+                                if (eventData == "[DONE]") break
+                                if (eventData.isBlank()) continue
 
-                            try {
-                                val assistantResponse = when (config.provider) {
-                                    "anthropic" -> {
-                                        val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
-                                        when (streamResponse.type) {
-                                            "content_block_delta" -> streamResponse.delta?.text ?: ""
-                                            else -> ""
+                                try {
+                                    val assistantResponse = when (config.provider) {
+                                        "anthropic" -> {
+                                            val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
+                                            when (streamResponse.type) {
+                                                "content_block_delta" -> streamResponse.delta?.text ?: ""
+                                                else -> ""
+                                            }
                                         }
+                                        "openrouter" -> {
+                                            val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
+                                            streamResponse.choices.firstOrNull()?.delta?.content ?: ""
+                                        }
+                                        else -> ""
                                     }
-                                    "openrouter" -> {
-                                        val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
-                                        streamResponse.choices.firstOrNull()?.delta?.content ?: ""
+                                    
+                                    if (assistantResponse.isNotEmpty()) {
+                                        print(assistantResponse)
+                                        fullResponse += assistantResponse
                                     }
-                                    else -> ""
-                                }
-                                
-                                if (assistantResponse.isNotEmpty()) {
-                                    print(assistantResponse)
-                                    fullResponse += assistantResponse
-                                }
 
-                            } catch (e: Exception) {
-                                // Debug: mostrar errores de parsing
-                                println("\n[DEBUG] JSON parsing error: ${e.message}")
-                                println("[DEBUG] Data: $eventData")
+                                } catch (e: Exception) {
+                                    // Mostrar errores críticos de parsing pero no interrumpir el streaming
+                                    if (eventData.contains("error") || eventData.contains("insufficient_quota")) {
+                                        println("\n❌ API Error detected: $eventData")
+                                        break
+                                    }
+                                    // Debug silencioso para otros errores menores
+                                    // println("\n[DEBUG] JSON parsing error: ${e.message} for data: $eventData")
+                                }
+                            }
+                            line.startsWith("event: ") -> {
+                                // Manejar eventos SSE como 'event: error'
+                                val eventType = line.removePrefix("event: ").trim()
+                                if (eventType == "error") {
+                                    println("\n❌ Streaming error event detected")
+                                }
+                            }
+                            line.contains("HTTP/") && line.contains("error") -> {
+                                // Detectar errores HTTP en la respuesta
+                                println("\n❌ HTTP Error in streaming response")
+                                break
                             }
                         }
                     }
                     println() // Newline after streaming is complete
+                    println("[DEBUG] Stream ended. Lines processed: $lineCount, Response length: ${fullResponse.length}")
                     
                     if (fullResponse.isNotEmpty()) {
                         conversation.add(Message("assistant", fullResponse))
                     } else {
-                        println("⚠️ No response received from streaming API. Check your API key and model availability.")
+                        when (config.provider) {
+                            "openrouter" -> {
+                                println("⚠️ No response from OpenRouter streaming.")
+                                println("💡 Possible causes:")
+                                println("   • Model doesn't support streaming (try normal chat)")
+                                println("   • Insufficient credits (free tier limitations)")
+                                println("   • Invalid API key or model name")
+                                println("   • Model is temporarily unavailable")
+                                if (config.model.contains("free")) {
+                                    println("   • Free model may have usage limits or be overloaded")
+                                }
+                            }
+                            "anthropic" -> {
+                                println("⚠️ No response from Anthropic streaming. Check your API key and credits.")
+                            }
+                            else -> {
+                                println("⚠️ No response received from streaming API.")
+                            }
+                        }
+                        println("💡 Type /menu to try normal chat or configure a different model.")
                     }
 
                 } catch (e: Exception) {
@@ -1404,12 +1473,16 @@ fun main() = runBlocking {
         }
 
         config.useStreaming = useStreaming
+        println("[DEBUG] useStreaming set to: $useStreaming")
+        println("[DEBUG] config.useStreaming is: ${config.useStreaming}")
         println("${NavigationController.ANSI_GREEN}✅ Configuration loaded: ${config.provider.uppercase()} API with model ${config.model}${NavigationController.ANSI_RESET}")
         
         // Run the chat session and check if we should continue or exit
         shouldContinue = if (config.useStreaming) {
+            println("[DEBUG] Calling runStreamingChatSession")
             runStreamingChatSession(config)
         } else {
+            println("[DEBUG] Calling runChatSession")
             runChatSession(config)
         }
     }
