@@ -142,12 +142,19 @@ class NavigationController {
         print(ANSI_CLEAR_SCREEN + ANSI_HOME)
         
         // Display title and breadcrumbs
-        println("${ANSI_BOLD}${ANSI_CYAN}=== Kotlin Native AI Chat - Enhanced Navigation ===${ANSI_RESET}")
+        val platform = detectPlatform()
+        val navMode = if (platform == Platform.WINDOWS) "Number-based Navigation (Windows)" else "Enhanced Navigation"
+        println("${ANSI_BOLD}${ANSI_CYAN}=== Kotlin Native AI Chat - $navMode ===${ANSI_RESET}")
         
         // Show breadcrumbs
         if (breadcrumbs.isNotEmpty()) {
             val breadcrumbPath = breadcrumbs.joinToString(" > ")
             println("${ANSI_BLUE}📍 $breadcrumbPath${ANSI_RESET}")
+        }
+        
+        // Show platform-specific info for Windows
+        if (platform == Platform.WINDOWS) {
+            println("${ANSI_YELLOW}ℹ️  Arrow key navigation not available on Windows - using number selection${ANSI_RESET}")
         }
         println()
         
@@ -155,12 +162,17 @@ class NavigationController {
         currentMenu.forEachIndexed { index, item ->
             val hasSubmenu = if (item.submenu != null) " ${ANSI_GREEN}→${ANSI_RESET}" else ""
             val itemText = "${ANSI_YELLOW}${item.text}${ANSI_RESET}"
-            println("${ANSI_BOLD}${index + 1}.${ANSI_RESET} $itemText$hasSubmenu")
+            val numberPrefix = "${ANSI_BOLD}${ANSI_GREEN}${index + 1}.${ANSI_RESET}"
+            println("$numberPrefix $itemText$hasSubmenu")
         }
         
         println()
         println("${ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${ANSI_RESET}")
-        println("${ANSI_BLUE}Navigation:${ANSI_RESET} Enter number (1-${currentMenu.size}) | Q/Esc to quit")
+        if (platform == Platform.WINDOWS) {
+            println("${ANSI_BLUE}Windows Navigation:${ANSI_RESET} Enter number (${ANSI_GREEN}1${ANSI_RESET}-${ANSI_GREEN}${currentMenu.size}${ANSI_RESET}) | Type ${ANSI_YELLOW}q${ANSI_RESET} to quit")
+        } else {
+            println("${ANSI_BLUE}Navigation:${ANSI_RESET} Enter number (1-${currentMenu.size}) | Q/Esc to quit")
+        }
         print("${ANSI_GREEN}Your choice:${ANSI_RESET} ")
     }
     
@@ -278,30 +290,75 @@ class NavigationController {
 
 // Terminal management functions
 fun isInteractiveTerminal(): Boolean {
-    // Check if we're in an interactive terminal by testing if isatty works
+    val platform = detectPlatform()
     return try {
-        val result = system("tty > /dev/null 2>&1")
-        result == 0
+        when (platform) {
+            Platform.WINDOWS -> {
+                // On Windows, getchar() doesn't properly handle arrow key sequences
+                // So we disable arrow key navigation and use number-based navigation
+                false
+            }
+            Platform.LINUX, Platform.MACOS -> {
+                // On Unix-like systems, use traditional tty check
+                val result = system("tty > /dev/null 2>&1")
+                result == 0
+            }
+            Platform.UNKNOWN -> {
+                // For unknown platforms, try to determine if we can use arrow keys
+                // Default to false to be safe
+                false
+            }
+        }
     } catch (e: Exception) {
+        // If system calls fail, fall back to number-based navigation
         false
     }
 }
 
 fun ensureNormalTerminalMode() {
+    val platform = detectPlatform()
     try {
-        system("stty echo icanon 2>/dev/null")
+        when (platform) {
+            Platform.WINDOWS -> {
+                // Windows doesn't need explicit terminal mode reset for basic functionality
+                // Terminal will return to normal mode automatically
+            }
+            Platform.LINUX, Platform.MACOS -> {
+                system("stty echo icanon 2>/dev/null")
+            }
+            Platform.UNKNOWN -> {
+                // Try Unix commands as fallback
+                system("stty echo icanon 2>/dev/null")
+            }
+        }
     } catch (e: Exception) {
-        // Ignore errors - not in a terminal
+        // Ignore errors - not in a terminal or command not available
     }
 }
 
 fun ensureRawTerminalMode() {
+    val platform = detectPlatform()
     try {
-        if (isInteractiveTerminal()) {
-            system("stty -echo -icanon min 1 time 0 2>/dev/null")
+        when (platform) {
+            Platform.WINDOWS -> {
+                // On Windows, we can't easily set raw terminal mode from Kotlin Native
+                // However, getchar() should still work for basic key detection
+                // We'll rely on Windows console input to handle key presses
+            }
+            Platform.LINUX, Platform.MACOS -> {
+                if (isInteractiveTerminal()) {
+                    system("stty -echo -icanon min 1 time 0 2>/dev/null")
+                }
+            }
+            Platform.UNKNOWN -> {
+                // Try Unix commands as fallback
+                if (isInteractiveTerminal()) {
+                    system("stty -echo -icanon min 1 time 0 2>/dev/null")
+                }
+            }
         }
     } catch (e: Exception) {
-        // Ignore errors - not in a terminal
+        // Ignore errors - not in a terminal or command not available
     }
 }
 
@@ -391,7 +448,8 @@ fun selectApiProvider(): ApiProvider {
     
     val menuItems = listOf(
         MenuItem("anthropic", "Anthropic (Claude)", action = { selectedProvider = ApiProvider.ANTHROPIC }),
-        MenuItem("openrouter", "OpenRouter (Multiple AI Models)", action = { selectedProvider = ApiProvider.OPENROUTER })
+        MenuItem("openrouter", "OpenRouter (Multiple AI Models)", action = { selectedProvider = ApiProvider.OPENROUTER }),
+        MenuItem("gemini", "Google Gemini", action = { selectedProvider = ApiProvider.GEMINI })
     )
     
     val controller = NavigationController()
@@ -447,11 +505,33 @@ fun requestOpenRouterConfig(): Config {
     return Config("openrouter", null, apiKey, model, url, appName, siteUrl)
 }
 
+fun requestGeminiConfig(): Config {
+    // Ensure terminal is in normal mode for text input
+    ensureNormalTerminalMode()
+    
+    print("Enter your Google AI Studio API key: ")
+    val apiKey = readlnOrNull()?.takeIf { it.isNotBlank() } ?: ""
+    
+    println("\nAvailable Gemini models:")
+    println("- gemini-2.5-flash (latest multimodal model)")
+    println("- gemini-2.5-flash-lite (fastest, most cost-effective)")
+    println("- gemini-2.5-pro (most powerful reasoning model)")
+    println("- gemini-1.5-flash (legacy)")
+    println("- gemini-1.5-pro (legacy)")
+    print("Enter model name: ")
+    val model = readlnOrNull()?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash"
+    
+    val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+    
+    return Config("gemini", null, apiKey, model, url)
+}
+
 fun requestConfigInput(): Config {
     val provider = selectApiProvider()
     return when (provider) {
         ApiProvider.ANTHROPIC -> requestAnthropicConfig()
         ApiProvider.OPENROUTER -> requestOpenRouterConfig()
+        ApiProvider.GEMINI -> requestGeminiConfig()
     }
 }
 
@@ -578,11 +658,24 @@ fun searchModelsLegacy(models: List<OpenRouterModel>, existingConfig: Config): C
     println("${NavigationController.ANSI_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NavigationController.ANSI_RESET}")
     
     // Force terminal restoration with multiple commands
-    system("stty echo icanon")
-    system("stty sane")  // Reset to sane defaults
+    val platform = detectPlatform()
+    when (platform) {
+        Platform.WINDOWS -> {
+            // Windows console will automatically restore normal input mode
+        }
+        Platform.LINUX, Platform.MACOS -> {
+            system("stty echo icanon")
+            system("stty sane")  // Reset to sane defaults
+        }
+        Platform.UNKNOWN -> {
+            // Try Unix commands as fallback
+            system("stty echo icanon")
+            system("stty sane")
+        }
+    }
     
     // Add a small delay to ensure terminal is ready
-    platform.posix.usleep(100000u) // 100ms
+    usleep(100000u) // 100ms
     
     print("\n${NavigationController.ANSI_GREEN}Enter search term:${NavigationController.ANSI_RESET} ")
     
@@ -645,6 +738,21 @@ fun changeModelOnly(existingConfig: Config): Config {
             
             existingConfig.copy(model = newModel)
         }
+        "gemini" -> {
+            println("\nChanging Gemini model (keeping existing API key)")
+            println("Available Gemini models:")
+            println("- gemini-2.5-flash (latest multimodal model)")
+            println("- gemini-2.5-flash-lite (fastest, most cost-effective)")
+            println("- gemini-2.5-pro (most powerful reasoning model)")
+            println("- gemini-1.5-flash (legacy)")
+            println("- gemini-1.5-pro (legacy)")
+            print("Enter new model name (current: ${existingConfig.model}): ")
+            val newModel = readlnOrNull()?.takeIf { it.isNotBlank() } ?: existingConfig.model
+            
+            // Update the URL with the new model
+            val newUrl = "https://generativelanguage.googleapis.com/v1beta/models/$newModel:generateContent"
+            existingConfig.copy(model = newModel, url = newUrl)
+        }
         else -> existingConfig
     }
 }
@@ -662,7 +770,7 @@ fun saveConfigUsingOkio(config: Config, configFilePath: Path) {
     }
 }
 
-enum class ApiProvider { ANTHROPIC, OPENROUTER }
+enum class ApiProvider { ANTHROPIC, OPENROUTER, GEMINI }
 
 @Serializable
 data class Config(
@@ -700,6 +808,23 @@ data class AnthropicRequestBody(val model: String, val messages: List<Message>, 
 
 @Serializable
 data class OpenRouterRequestBody(val model: String, val messages: List<Message>, val max_tokens: Int, val stream: Boolean = false)
+
+@Serializable
+data class GeminiRequestBody(val contents: List<GeminiContent>, val generationConfig: GeminiGenerationConfig? = null)
+
+@Serializable
+data class GeminiContent(val parts: List<GeminiPart>, val role: String? = null)
+
+@Serializable
+data class GeminiPart(val text: String)
+
+@Serializable
+data class GeminiGenerationConfig(
+    val maxOutputTokens: Int = 1024,
+    val temperature: Double? = null,
+    val topP: Double? = null,
+    val topK: Int? = null
+)
 
 // ANTHROPIC API STRUCTURES
 @Serializable
@@ -827,6 +952,43 @@ data class AnthropicDelta(
     val text: String? = null
 )
 
+// GEMINI API STRUCTURES
+@Serializable
+data class GeminiCandidate(
+    val content: GeminiContent,
+    val finishReason: String? = null,
+    val index: Int? = null,
+    val safetyRatings: List<GeminiSafetyRating>? = null
+)
+
+@Serializable
+data class GeminiSafetyRating(
+    val category: String,
+    val probability: String
+)
+
+@Serializable
+data class GeminiTokenDetails(
+    val type: String? = null,
+    val count: Int? = null
+)
+
+@Serializable
+data class GeminiUsageMetadata(
+    val promptTokenCount: Int,
+    val candidatesTokenCount: Int,
+    val totalTokenCount: Int,
+    val promptTokensDetails: List<GeminiTokenDetails>? = null,
+    val candidatesTokensDetails: List<GeminiTokenDetails>? = null
+)
+
+@Serializable
+data class GeminiApiResponse(
+    val candidates: List<GeminiCandidate>,
+    val usageMetadata: GeminiUsageMetadata? = null,
+    val modelVersion: String? = null
+)
+
 // OPENROUTER STREAMING API STRUCTURES
 @Serializable
 data class OpenRouterDelta(
@@ -850,6 +1012,21 @@ data class OpenRouterStreamResponse(
     val choices: List<OpenRouterStreamChoice>,
     val usage: OpenRouterUsage? = null
 )
+
+// Utility functions for Gemini API
+fun convertMessagesToGeminiFormat(messages: List<Message>): List<GeminiContent> {
+    return messages.map { message ->
+        val geminiRole = when (message.role) {
+            "user" -> "user"
+            "assistant" -> "model"
+            else -> "user" // Default fallback
+        }
+        GeminiContent(
+            parts = listOf(GeminiPart(text = message.content)),
+            role = geminiRole
+        )
+    }
+}
 
 // Enhanced menu functions using NavigationController
 fun showEnhancedStartupMenu(config: Config? = null): Pair<Int, Boolean> {
@@ -1000,6 +1177,18 @@ suspend fun runChatSession(config: Config): Boolean {
                                 setBody(requestBody)
                             }
                         }
+                        "gemini" -> {
+                            val geminiContents = convertMessagesToGeminiFormat(conversation)
+                            val requestBody = GeminiRequestBody(
+                                contents = geminiContents,
+                                generationConfig = GeminiGenerationConfig(maxOutputTokens = 1024)
+                            )
+                            client.post(config.url) {
+                                header("x-goog-api-key", config.apiKey)
+                                contentType(ContentType.Application.Json)
+                                setBody(requestBody)
+                            }
+                        }
                         else -> throw IllegalArgumentException("Unknown provider: ${config.provider}")
                     }
                     
@@ -1082,6 +1271,49 @@ suspend fun runChatSession(config: Config): Boolean {
                             }
                             
                             println("${NavigationController.ANSI_BOLD}Assistant:${NavigationController.ANSI_RESET} $assistantMessage")
+                            
+                            assistantMessage
+                        }
+                        "gemini" -> {
+                            // Check for Gemini API errors
+                            if (responseText.contains("\"error\"")) {
+                                println("❌ Gemini API Error: $responseText")
+                                if (responseText.contains("API_KEY_INVALID")) {
+                                    println("💡 Invalid API key. Get your key from Google AI Studio.")
+                                } else if (responseText.contains("QUOTA_EXCEEDED")) {
+                                    println("💡 Quota exceeded. Check your Google AI Studio usage limits.")
+                                }
+                                continue
+                            }
+                            
+                            // Parse as Gemini response using HTTP client's JSON config
+                            val response = httpResponse.body<GeminiApiResponse>()
+                            
+                            if (response.candidates.isEmpty()) {
+                                println("❌ No response candidates from Gemini")
+                                continue
+                            }
+                            
+                            val candidate = response.candidates[0]
+                            val assistantMessage = candidate.content.parts.firstOrNull()?.text ?: ""
+                            
+                            if (assistantMessage.isBlank()) {
+                                println("❌ Empty response from Gemini")
+                                candidate.finishReason?.let { reason ->
+                                    println("💡 Finish reason: $reason")
+                                    if (reason.contains("SAFETY")) {
+                                        println("💡 Response blocked by Gemini safety filters")
+                                    }
+                                }
+                                continue
+                            }
+                            
+                            println("${NavigationController.ANSI_BOLD}Assistant:${NavigationController.ANSI_RESET} $assistantMessage")
+                            
+                            // Display usage info if available
+                            response.usageMetadata?.let { usage ->
+                                println("${NavigationController.ANSI_CYAN}Token usage: ${usage.promptTokenCount} prompt + ${usage.candidatesTokenCount} response = ${usage.totalTokenCount} total${NavigationController.ANSI_RESET}")
+                            }
                             
                             assistantMessage
                         }
@@ -1182,6 +1414,17 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                             config.appName?.let { requestBuilder.header("X-Title", it) }
                             OpenRouterRequestBody(config.model, conversation, 1024, stream = true)
                         }
+                        "gemini" -> {
+                            // Gemini doesn't support SSE streaming in the same way
+                            // Fall back to normal request and simulate streaming by chunking response
+                            println("[DEBUG] Gemini streaming not supported, falling back to normal request")
+                            requestBuilder.header("x-goog-api-key", config.apiKey)
+                            val geminiContents = convertMessagesToGeminiFormat(conversation)
+                            GeminiRequestBody(
+                                contents = geminiContents,
+                                generationConfig = GeminiGenerationConfig(maxOutputTokens = 1024)
+                            )
+                        }
                         else -> throw IllegalArgumentException("Unknown provider: ${config.provider}")
                     }
                     
@@ -1211,6 +1454,39 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                     
                     println("[DEBUG] Starting to read stream...")
                     println("[DEBUG] Content-Type: ${httpResponse.headers["Content-Type"]}")
+                    
+                    // Handle Gemini differently since it doesn't support SSE streaming
+                    if (config.provider == "gemini") {
+                        // Check HTTP status first
+                        if (httpResponse.status.value !in 200..299) {
+                            val errorBody = httpResponse.body<String>()
+                            println("❌ Gemini HTTP Error: ${httpResponse.status.value} - $errorBody")
+                            continue
+                        }
+                        
+                        val response = httpResponse.body<GeminiApiResponse>()
+                        if (response.candidates.isEmpty()) {
+                            println("❌ No response candidates from Gemini")
+                            continue
+                        }
+                        
+                        val assistantMessage = response.candidates[0].content.parts.firstOrNull()?.text ?: ""
+                        if (assistantMessage.isBlank()) {
+                            println("❌ Empty response from Gemini")
+                            continue
+                        }
+                        
+                        // Simulate streaming by printing response character by character
+                        print("${NavigationController.ANSI_BOLD}Assistant:${NavigationController.ANSI_RESET} ")
+                        for (char in assistantMessage) {
+                            print(char)
+                            kotlinx.coroutines.delay(10) // Small delay to simulate streaming
+                        }
+                        println()
+                        
+                        conversation.add(Message("assistant", assistantMessage))
+                        continue
+                    }
                     
                     val channel: ByteReadChannel = httpResponse.body()
 
