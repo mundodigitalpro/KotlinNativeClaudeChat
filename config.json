@@ -1,1 +1,1 @@
-{"provider":"openrouter","apiKey":"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","model":"openai/gpt-oss-20b:free","url":"https://openrouter.ai/api/v1/chat/completions"}
+{"provider":"openrouter","apiKey":"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","model":"google/gemma-2-9b-it:free","url":"https://openrouter.ai/api/v1/chat/completions"}
