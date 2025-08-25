@@ -41,4 +41,8 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+# Configuration files (contain sensitive API keys)
 config.json
+
+# Claude Code directory
+.claude/
