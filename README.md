@@ -11,7 +11,10 @@ Esta aplicación de chat desarrollada en Kotlin Native permite interactuar con m
 - **Multiplataforma**: Compatible con macOS, Linux y Windows (Kotlin Native)
 - **Gestión de Configuración**: Carga/guardado automático usando Okio
 - **Serialización JSON**: Manejo robusto de respuestas con kotlinx.serialization
-- **Chat Interactivo**: Conversación en tiempo real con historial
+- **Chat Dual Mode**: Modo normal y streaming en tiempo real con historial
+- **Chat Commands**: Sistema completo de comandos (/save, /load, /clear, /config)
+- **Conversation Management**: Guardado/carga de historiales de conversación
+- **Enhanced Navigation**: Sistema de navegación interactivo con flechas
 
 ## 🤖 Proveedores Soportados
 
@@ -167,11 +170,52 @@ Enter model name (e.g., claude-3-5-haiku-20241022): claude-3-5-sonnet-20241022
 Configuration loaded: ANTHROPIC API with model claude-3-5-sonnet-20241022
 ```
 
-### 💬 Chatear con Comandos Mejorados
+### 💬 Dual Mode Chat System
 
-Una vez configurado, puedes chatear con comandos especiales para mejor control:
+La aplicación ahora ofrece **dos modos de chat diferentes** tras la configuración:
 
-**Inicio del Chat:**
+**Menú de Selección de Modo:**
+```
+=== Kotlin Native AI Chat - Enhanced Navigation ===
+📍 Mode Selection - OPENROUTER API with model openai/gpt-4o-mini
+
+ ► 1. Use existing configuration (Normal Chat)
+   2. Use existing configuration (Streaming Chat)
+   3. Configure new API
+   4. Change model only (keep same API key)
+   5. Browse all OpenRouter models (free/paid)
+   6. Reconfigure existing setup
+   7. Select model from list
+   8. Change provider
+   9. Toggle autosave on exit
+   10. Customize assistant persona
+   11. Exit
+```
+
+### 🌊 Modo Streaming (NUEVO)
+
+**Características del Streaming:**
+```
+💬 Streaming Chat Session Started
+Model: openai/gpt-4o-mini
+Streaming mode provides real-time responses as they are generated
+Type /help or ? for chat commands
+
+You: Explica la física cuántica
+Assistant: [🌊 Generating response...]
+Assistant: La física cuántica es una teoría fundamental que describe el comportamiento de la materia y la energía a escalas muy pequeñas...
+[El texto aparece carácter por carácter en tiempo real]
+```
+
+**Ventajas del Streaming:**
+- ⚡ **Respuestas en tiempo real**: El texto aparece progresivamente
+- 🔄 **Feedback inmediato**: Ves la generación mientras ocurre  
+- 🌊 **Experiencia fluida**: Similar a ChatGPT web
+- 📊 **Debugging avanzado**: Logs detallados para troubleshooting
+
+### 💬 Modo Chat Normal
+
+**Inicio del Chat Regular:**
 ```
 ✅ Configuration loaded: OPENROUTER API with model openai/gpt-4o-mini
 
@@ -186,17 +230,55 @@ You: ¿Puedes resolver 15 + 27?
 Assistant: 15 + 27 = 42
 ```
 
-#### 🎮 Comandos de Chat Disponibles
+#### 🎮 Comandos de Chat Disponibles (EXPANDIDOS)
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💬 Chat Commands:
+💬 Chat Commands (Ambos Modos):
   /menu or /back  - Return to main menu
-  /exit or /quit  - Exit application
+  /exit or /quit  - Exit application  
   /help or ?      - Show this help
+  /clear          - Clear conversation history
+  /config         - Show current configuration
+  /save           - Save conversation history to a file
+  /load           - Load conversation history from a file
   [Enter]         - Return to main menu (empty message)
   Type any message to chat with the AI model
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Nuevos Comandos Explicados:**
+
+**📜 /clear** - Limpia el historial:
+```
+You: /clear
+📜 Conversation history cleared.
+```
+
+**⚙️ /config** - Muestra configuración actual:
+```
+You: /config
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️ Current Configuration:
+  Provider: openrouter
+  Model: openai/gpt-4o-mini
+  App Name: KotlinNativeClaudeChat
+  Site URL: https://github.com/user/project
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**💾 /save** - Guarda conversación:
+```
+You: /save
+💾 Conversation history saved to conversation_history_1737886543123.json
+```
+
+**📂 /load** - Carga conversación:
+```
+You: /load
+Enter the path to the conversation history file:
+conversation_history_1737886543123.json
+📜 Conversation history loaded.
 ```
 
 **Ejemplos de Uso:**
@@ -597,13 +679,25 @@ Press Enter to execute this action
   - ✅ Breadcrumbs para mostrar ubicación actual en el menú
   - ✅ Navegación fluida sin necesidad de reingresar números constantemente
 - [ ] Soporte para más proveedores (Cohere, Together.ai)
-- [ ] Modo streaming de respuestas
-- [ ] Guardado de historial de conversaciones
+- [x] **✅ Modo streaming de respuestas**: Implementado con streaming real usando Server-Sent Events
+- [x] **✅ Guardado de historial de conversaciones**: Funcionalidad completa de save/load implementada
 - [ ] Interfaz gráfica (Compose Multiplatform)
 - [ ] Configuración de parámetros del modelo (temperatura, max tokens)
 - [x] **Soporte completo para modelos con reasoning**: GPT-oss-20b con capacidades de razonamiento visible
 
 ## 🔄 Actualizaciones Recientes
+
+### v1.7.0 (Enero 2025) - 🌊 Streaming Mode y Chat Avanzado
+- ✅ **Modo Streaming Completo**: Implementación completa de streaming usando Server-Sent Events (SSE)
+- ✅ **Respuestas en Tiempo Real**: Texto que aparece carácter por carácter mientras se genera
+- ✅ **Sistema Dual de Chat**: Selección entre modo normal y streaming desde el menú principal
+- ✅ **Comandos de Chat Expandidos**: 8 comandos totales (/clear, /save, /load, /config, /help, /menu, /exit, /quit)
+- ✅ **Gestión de Historial**: Sistema completo de guardado/carga de conversaciones con timestamps
+- ✅ **Validación de Configuración**: Validación runtime de configuraciones API
+- ✅ **Menú Startup Mejorado**: 11 opciones de configuración incluyendo autosave y personalización
+- ✅ **Debug de Streaming**: Sistema completo de logs para troubleshooting de streaming
+- ✅ **Manejo de Errores Avanzado**: Detección automática de soporte streaming por modelo
+- ✅ **Seguridad Mejorada**: Protección avanzada contra commits accidentales de API keys
 
 ### v1.6.0 (Enero 2025) - 🌐 Soporte Multiplataforma Universal
 - ✅ **Compatibilidad completa Windows/Linux**: Detección automática de plataforma en tiempo de ejecución
