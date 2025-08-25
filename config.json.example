@@ -1,0 +1,8 @@
+{
+  "provider": "openrouter",
+  "apiKey": "YOUR_API_KEY_HERE",
+  "model": "openai/gpt-4o-mini", 
+  "url": "https://openrouter.ai/api/v1/chat/completions",
+  "appName": "Your App Name",
+  "siteUrl": "https://your-site.com"
+}
