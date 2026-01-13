@@ -1515,7 +1515,7 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                         if (line.isBlank()) continue
 
                         // Debug: descomentar la siguiente línea para ver el stream completo
-                        println("[DEBUG] Line $lineCount: $line")
+                        // println("[DEBUG] Line $lineCount: $line")
 
                         when {
                             line.startsWith("data: ") -> {
