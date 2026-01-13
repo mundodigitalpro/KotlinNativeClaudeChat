@@ -20,6 +20,14 @@ import okio.*
 import okio.Path.Companion.toPath
 import platform.posix.*
 
+// Global JSON configuration with lenient parsing
+val jsonConfig = Json {
+    prettyPrint = true
+    isLenient = true
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+}
+
 // Enhanced Navigation System
 data class MenuItem(
     val id: String,
@@ -436,7 +444,7 @@ fun loadConfigUsingOkio(configFilePath: Path): Config? {
         val jsonContent = fileSystem.read(configFilePath) {
             readUtf8()
         }
-        Json.decodeFromString<Config>(jsonContent)
+        jsonConfig.decodeFromString<Config>(jsonContent)
     } catch (e: Exception) {
         println("Error loading config: ${e.message}")
         null
@@ -760,7 +768,7 @@ fun changeModelOnly(existingConfig: Config): Config {
 fun saveConfigUsingOkio(config: Config, configFilePath: Path) {
     try {
         val fileSystem = FileSystem.SYSTEM
-        val jsonContent = Json.encodeToString(Config.serializer(), config)
+        val jsonContent = jsonConfig.encodeToString(Config.serializer(), config)
         fileSystem.write(configFilePath) {
             writeUtf8(jsonContent)
         }
@@ -862,18 +870,30 @@ data class OpenRouterChoice(
 )
 
 @Serializable
-data class TokenDetails(
-    val cached_tokens: Int? = null,
-    val reasoning_tokens: Int? = null
+data class CostDetails(
+    val upstream_inference: Double? = null,
+    val upstream_prompt: Double? = null,
+    val upstream_completion: Double? = null
 )
 
-@Serializable  
+@Serializable
+data class TokenDetails(
+    val cached_tokens: Int? = null,
+    val reasoning_tokens: Int? = null,
+    val audio_tokens: Int? = null,
+    val video_tokens: Int? = null,
+    val cost_details: CostDetails? = null
+)
+
+@Serializable
 data class OpenRouterUsage(
     val prompt_tokens: Int,
     val completion_tokens: Int,
     val total_tokens: Int,
     val prompt_tokens_details: TokenDetails? = null,
-    val completion_tokens_details: TokenDetails? = null
+    val completion_tokens_details: TokenDetails? = null,
+    val cost: Double? = null,
+    val is_byok: Boolean? = null
 )
 
 // OPENROUTER MODELS API STRUCTURES
@@ -1082,12 +1102,7 @@ fun createPlatformHttpClient(): HttpClient {
     // The build system will include only the appropriate engine for each target
     return HttpClient {
         install(ContentNegotiation) {
-            json(Json {
-                prettyPrint = true
-                isLenient = true
-                ignoreUnknownKeys = true
-                coerceInputValues = true
-            })
+            json(jsonConfig)
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 300000 // 5 minutes
@@ -1219,13 +1234,13 @@ suspend fun runChatSession(config: Config): Boolean {
                         "anthropic" -> {
                             // Check if it's an error response
                             if (responseText.contains("\"type\":\"error\"")) {
-                                val errorResponse = Json.decodeFromString<ErrorResponse>(responseText)
+                                val errorResponse = jsonConfig.decodeFromString<ErrorResponse>(responseText)
                                 println("❌ API Error: ${errorResponse.error.message}")
                                 continue
                             }
                             
                             // Parse as successful Anthropic response
-                            val response = Json.decodeFromString<AnthropicApiResponse>(responseText)
+                            val response = jsonConfig.decodeFromString<AnthropicApiResponse>(responseText)
 
                             // Process response content
                             response.content.forEach { contentBlock ->
@@ -1241,7 +1256,7 @@ suspend fun runChatSession(config: Config): Boolean {
                         }
                         "openrouter" -> {
                             // Parse as OpenRouter response
-                            val response = Json.decodeFromString<OpenRouterApiResponse>(responseText)
+                            val response = jsonConfig.decodeFromString<OpenRouterApiResponse>(responseText)
                             
                             if (response.choices.isEmpty()) {
                                 println("❌ API Error: No response choices received")
@@ -1511,14 +1526,14 @@ suspend fun runStreamingChatSession(config: Config): Boolean {
                                 try {
                                     val assistantResponse = when (config.provider) {
                                         "anthropic" -> {
-                                            val streamResponse = Json.decodeFromString<AnthropicStreamResponse>(eventData)
+                                            val streamResponse = jsonConfig.decodeFromString<AnthropicStreamResponse>(eventData)
                                             when (streamResponse.type) {
                                                 "content_block_delta" -> streamResponse.delta?.text ?: ""
                                                 else -> ""
                                             }
                                         }
                                         "openrouter" -> {
-                                            val streamResponse = Json.decodeFromString<OpenRouterStreamResponse>(eventData)
+                                            val streamResponse = jsonConfig.decodeFromString<OpenRouterStreamResponse>(eventData)
                                             streamResponse.choices.firstOrNull()?.delta?.content ?: ""
                                         }
                                         else -> ""
@@ -1620,7 +1635,7 @@ fun loadConversationHistory(): List<Message>? {
         val jsonContent = fileSystem.read(filePath) {
             readUtf8()
         }
-        Json.decodeFromString(ListSerializer(Message.serializer()), jsonContent)
+        jsonConfig.decodeFromString(ListSerializer(Message.serializer()), jsonContent)
     } catch (e: Exception) {
         println("❌ Error loading conversation history: ${e.message}")
         null
@@ -1632,7 +1647,7 @@ fun saveConversationHistory(conversation: List<Message>) {
     val fileName = "conversation_history_$timestamp.json".toPath()
     try {
         val fileSystem = FileSystem.SYSTEM
-        val jsonContent = Json.encodeToString(ListSerializer(Message.serializer()), conversation)
+        val jsonContent = jsonConfig.encodeToString(ListSerializer(Message.serializer()), conversation)
         fileSystem.write(fileName) {
             writeUtf8(jsonContent)
         }
